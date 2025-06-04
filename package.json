@@ -1,0 +1,14 @@
+{
+	"type": "module",
+	"scripts": {
+		"test": "node --loader ts-node/esm --test tests/**/*.ts"
+	},
+	"dependencies": {
+		"@coral-xyz/anchor": "^0.31.1"
+	},
+	"devDependencies": {
+		"@types/node": "^22.15.29",
+		"ts-node": "^10.9.2",
+		"typescript": "^5.7.3"
+	}
+}
