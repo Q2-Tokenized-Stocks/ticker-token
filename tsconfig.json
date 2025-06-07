@@ -3,6 +3,7 @@
     "module": "esnext",
     "target": "es2022",
     "moduleResolution": "node",
+    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
     "baseUrl": ".",
     "paths": { "~/*": ["./*"] }
