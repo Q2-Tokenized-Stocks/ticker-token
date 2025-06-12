@@ -1,31 +1,51 @@
 import * as anchor from '@coral-xyz/anchor'
 import { Program } from '@coral-xyz/anchor'
 
-import { PublicKey, SystemProgram } from '@solana/web3.js'
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import { Keypair, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js'
 
 import { TickerToken } from '~/target/types/ticker_token'
 
 anchor.setProvider(anchor.AnchorProvider.env())
 
-export class Ticker {
-	#program = anchor.workspace.ticker_token as Program<TickerToken>
-	get signer () { return this.#provider.wallet }
+export const pda = (seeds = []) => PublicKey.findProgramAddressSync(
+	seeds.map(seed => Buffer.from(seed)),
+	anchor.workspace.tickerToken.programId
+)
 
+export class Ticker {
+
+	#program = anchor.workspace.ticker_token as Program<TickerToken>
+	get program () { return this.#program }
+	
 	#provider = anchor.getProvider()
 	get provider () { return this.#provider }
+
+	#signer = null
+	get signer () { return this.#signer || this.#provider.wallet.payer }
 
 	#registryPDA : PublicKey
 	get registry () {
 		return this.#program.account.registry.fetch(this.#registryPDA)
 	}
 
-	constructor () {
-		const [registryPDA] = PublicKey.findProgramAddressSync(
-			[Buffer.from('registry')],
-			this.#program.programId
-		)
+	ticker (symbol : string) {
+		const [tickerDataPDA] = pda(['ticker', symbol])
+		return this.#program.account.tickerData.fetch(tickerDataPDA)
+	}
 
+	get tickers () {
+		return this.#program.account.tickerData.all()
+			.then(tickers => tickers.map(ticker => ticker.account))
+	}
+
+	connect (signer = Keypair.generate()) : Ticker { return new Ticker(signer) }
+
+	constructor (test = null) {
+		const [registryPDA] = pda(['registry'])
+		
 		this.#registryPDA = registryPDA
+		this.#signer = test
 	}
 
 	async init () {
@@ -43,30 +63,54 @@ export class Ticker {
 		return this
 	}
 
-	addAdmin (admin : PublicKey, signer = this.signer.payer) {
-		return this.#program.methods
-			.addAdmin(admin)
-			.accounts({
-	    		caller: signer.publicKey,
-    			// @ts-ignore
-    			registry: this.#registryPDA
-  			})
-			.signers([signer]).rpc()
+	setOracle (oracle : PublicKey) {
+		const { signer } = this
+		
+		return this.#program.methods.setOracle(oracle)
+      		.accounts({
+				// @ts-ignore
+				authority: signer.publicKey,
+        		registry: this.#registryPDA
+      		})
+      		.signers([signer])
+      		.rpc()
 	}
 
-	removeAdmin (admin : PublicKey, signer = this.signer.payer) {
+	transferAuthority (authority : PublicKey) {
+		const { signer } = this
+
 		return this.#program.methods
-			.removeAdmin(admin)
+			.transferAuthority(authority)
 			.accounts({
-	    		caller: signer.publicKey,
 				// @ts-ignore
+				authority: signer.publicKey,
 				registry: this.#registryPDA
-  			})
+			})
+			.signers([signer])
+			.rpc()
+	}
+
+	createTicker (symbol : string, decimals = 0) {
+		const { signer } = this
+		
+		const [tickerData] = pda(['ticker', symbol])
+		const [mint] = pda(['mint', symbol])
+
+		return this.#program.methods
+			.createTicker(symbol, decimals)
+			.accounts({
+				authority: signer.publicKey,
+				// @ts-ignore
+				registry: this.#registryPDA,
+				tickerData,
+				mint,
+				rent: SYSVAR_RENT_PUBKEY,
+				tokenProgram: TOKEN_PROGRAM_ID,
+				systemProgram: SystemProgram.programId
+			})
 			.signers([signer]).rpc()
 	}
 }
 
 const ticker = new Ticker
-await ticker.init()
-
 export default ticker

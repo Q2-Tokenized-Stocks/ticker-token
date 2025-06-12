@@ -2,62 +2,90 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { Keypair } from '@solana/web3.js'
-import ticker from './ticker-tocken.ts'
+import TickerToken, { pda } from './ticker-tocken.ts'
 
+const randomString = (length = 6) => Math.random().toString(36).substring(2, 2 + length).toUpperCase()
 
 test('registry was initialized correctly', async () => {
-  const { superAdmin } = await ticker.registry
+	await TickerToken.init()
+  	const { authority } = await TickerToken.registry
 
-  assert.equal(
-	superAdmin.toBase58(), ticker.provider.wallet.publicKey.toBase58(), 
-  	'Super admin should be the wallet used to initialize the registry'
-  )
+	assert.equal(
+		authority.toBase58(), TickerToken.provider.wallet.publicKey.toBase58(), 
+  		'Super admin should be the wallet used to initialize the registry'
+	)
 })
 
 test('init fails if registry already initialized', () => 
-	assert.rejects(ticker.init())
+	assert.rejects(TickerToken.init())
 )
 
-test('super admin can add a new admin', async () => {
-	const admin = Keypair.generate()
-
-	await ticker.addAdmin(admin.publicKey)
-	const { admins } = await ticker.registry
-
-  	assert.ok(
-    	admins.some(a => a.toBase58() === admin.publicKey.toBase58()),
-    	'New admin should be added to the registry'
-  	)
-})
-
-test('non-admin cannot add new admin', async () => {
-	const admin = Keypair.generate()
-	const nonadmin = Keypair.generate()
-
-	assert.rejects(ticker.addAdmin(admin.publicKey, nonadmin))
-})
-
-test('admin can be removed', async () => {
-	const adminToRemove = Keypair.generate()
-
-	// Add admin first
-	await ticker.addAdmin(adminToRemove.publicKey)
-	// Then remove
-	await ticker.removeAdmin(adminToRemove.publicKey)
-
-	const { admins } = await ticker.registry
-
-  	assert.ok(
-    	!admins.some(admin => admin.toBase58() === adminToRemove.publicKey.toBase58()),
-    	'Admin should be removed from the registry'
-  	)
-})
-
-test('non-admin cannot remove admin', async () => {
-	const nonadmin = Keypair.generate()
-	const target = Keypair.generate()
+test('updating oracle', async () => {
+	const newOracle = Keypair.generate().publicKey
 
 	await assert.rejects(
-		ticker.removeAdmin(target.publicKey, nonadmin)
+		TickerToken.connect().setOracle(newOracle),
+		'Only the authority can set the oracle'
 	)
+
+	await TickerToken.setOracle(newOracle)
+
+	// Verify that the oracle was set correctly
+	const { oracle } = await TickerToken.registry
+	assert.equal(
+		oracle.toBase58(), newOracle.toBase58(),
+		'Oracle should be updated to the new oracle'
+	)
+})
+
+test('can transfer authority', async () => {
+	const { authority } = await TickerToken.registry
+	const newAuthority = Keypair.generate()
+
+	await assert.rejects(
+		TickerToken.connect().transferAuthority(newAuthority.publicKey),
+		'Only the authority can transfer authority'
+	)
+
+	await TickerToken.transferAuthority(newAuthority.publicKey)
+	// Verify that the authority was updated
+	const updated = await TickerToken.registry
+	assert.equal(
+		updated.authority.toBase58(), newAuthority.publicKey.toBase58(),
+		'Authority should be updated to the new authority'
+	)
+
+	await TickerToken.connect(newAuthority).transferAuthority(authority)
+})
+
+test('can create a ticker', async () => {
+	const symbol = randomString()
+	const decimals = 6
+
+	await assert.rejects(
+		TickerToken.ticker(symbol),
+		'Ticker should not exist before creation'
+	)
+
+	await assert.rejects(
+		TickerToken.connect().createTicker(symbol),
+		'Only the authority can create a ticker'
+	)
+
+	await TickerToken.createTicker(symbol, decimals)
+	const ticker = await TickerToken.ticker(symbol)
+
+	const [mintPDA] = pda(['mint', symbol])
+	assert.equal(
+		ticker.mint.toBase58(), mintPDA.toBase58(),
+		'Ticker mint should match the expected PDA'
+	)
+
+	assert.equal(
+		symbol, 
+		Buffer.from(ticker.symbol).toString('utf8').replace(/\0/g, ''), 
+		'Ticker symbol should match'
+	)
+	assert.equal(ticker.decimals, decimals, 'Ticker decimals should match')
+	
 })
