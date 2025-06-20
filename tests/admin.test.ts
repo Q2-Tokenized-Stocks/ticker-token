@@ -3,11 +3,11 @@ import assert from 'node:assert/strict'
 
 import { Keypair } from '@solana/web3.js'
 import TickerToken, { pda } from './ticker-tocken.ts'
+import Oracle from './oracle.ts'
 
-const randomString = (length = 6) => Math.random().toString(36).substring(2, 2 + length).toUpperCase()
+import { randomString } from './utils.ts'
 
 test('registry was initialized correctly', async () => {
-	await TickerToken.init()
   	const { authority } = await TickerToken.registry
 
 	assert.equal(
@@ -21,19 +21,17 @@ test('init fails if registry already initialized', () =>
 )
 
 test('updating oracle', async () => {
-	const newOracle = Keypair.generate().publicKey
-
 	await assert.rejects(
-		TickerToken.connect().setOracle(newOracle),
+		TickerToken.connect(null).setOracle(Oracle.signer),
 		'Only the authority can set the oracle'
 	)
 
-	await TickerToken.setOracle(newOracle)
+	await TickerToken.setOracle(Oracle.signer)
 
 	// Verify that the oracle was set correctly
 	const { oracle } = await TickerToken.registry
 	assert.equal(
-		oracle.toBase58(), newOracle.toBase58(),
+		oracle.toBase58(), Oracle.signer.toBase58(),
 		'Oracle should be updated to the new oracle'
 	)
 })
@@ -43,7 +41,7 @@ test('can transfer authority', async () => {
 	const newAuthority = Keypair.generate()
 
 	await assert.rejects(
-		TickerToken.connect().transferAuthority(newAuthority.publicKey),
+		TickerToken.connect(null).transferAuthority(newAuthority.publicKey),
 		'Only the authority can transfer authority'
 	)
 
