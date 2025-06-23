@@ -1,17 +1,11 @@
 import * as anchor from '@coral-xyz/anchor'
-import { createMint, getOrCreateAssociatedTokenAccount, mintTo } from '@solana/spl-token'
+import { createMint, mintTo } from '@solana/spl-token'
 import { Keypair } from '@solana/web3.js'
+import { splAccount, ata } from './utils.ts'
 
 const provider = anchor.getProvider()
 
 export class SPLToken {
-	constructor (
-		public mint: anchor.web3.PublicKey, 
-		public payer: anchor.web3.Keypair, 
-		public symbol: string, 
-		public decimals = 6
-	) {}
-
 	static async create (symbol: string, decimals = 6) {
 		const payer = Keypair.generate()
 
@@ -34,23 +28,26 @@ export class SPLToken {
 		return new SPLToken(mint, payer, symbol, decimals)
 	}
 
-	async mintTo (dest: anchor.web3.PublicKey, amount: number) {
-		const ata = await getOrCreateAssociatedTokenAccount(
-			provider.connection,
-			this.payer,
-			this.mint,
-			dest
-		)
+	constructor (
+		public mint: anchor.web3.PublicKey, 
+		public payer: anchor.web3.Keypair, 
+		public symbol: string, 
+		public decimals = 6
+	) {}
+
+	async mintTo (dest: anchor.web3.PublicKey, amount: number, signer = null) {
+		const { mint, payer } = this
+		const account = await splAccount(await ata(mint, dest), mint, signer)
 
 		await mintTo(
 			provider.connection,
-			this.payer,
-			this.mint,
-			ata.address,
-			this.payer,
+			payer, mint,
+			account.address, payer,
 			amount
 		)
 
-		return ata.address
+		return account
 	}
 }
+
+export const USDC = await SPLToken.create('USDC', 6)

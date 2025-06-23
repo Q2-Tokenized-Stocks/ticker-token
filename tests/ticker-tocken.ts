@@ -1,21 +1,24 @@
 import * as anchor from '@coral-xyz/anchor'
-import { Program } from '@coral-xyz/anchor'
 
-import { getAssociatedTokenAddress, TOKEN_PROGRAM_ID } from '@solana/spl-token'
-import { Keypair, PublicKey, SystemProgram, SYSVAR_RENT_PUBKEY } from '@solana/web3.js'
+import { 
+	Keypair, PublicKey, Ed25519Program,
+	SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, SYSVAR_RENT_PUBKEY 
+} from '@solana/web3.js'
+import { TOKEN_PROGRAM_ID } from '@solana/spl-token'
 
 import { TickerToken } from '~/target/types/ticker_token'
+import IDL from '../target/idl/ticker_token.json' with { type: 'json' }
+
+import { pda, ata } from './utils.ts'
+import type { OraclePayload } from './oracle'
 
 anchor.setProvider(anchor.AnchorProvider.env())
 
-export const pda = (seeds = []) => PublicKey.findProgramAddressSync(
-	seeds.map(seed => Buffer.from(seed)),
-	anchor.workspace.tickerToken.programId
-)
-
 export class Ticker {
 
-	#program = anchor.workspace.ticker_token as Program<TickerToken>
+	get idl () { return IDL as anchor.Idl }
+
+	#program = anchor.workspace.ticker_token as anchor.Program<TickerToken>
 	get program () { return this.#program }
 	
 	#provider = anchor.getProvider()
@@ -24,7 +27,7 @@ export class Ticker {
 	#signer = null
 	get signer () { return this.#signer || this.#provider.wallet.payer }
 
-	#registryPDA = pda(['registry'])[0]
+	#registryPDA = null
 	get registry () {
 		return this.#program.account.registry.fetch(this.#registryPDA)
 	}
@@ -43,6 +46,7 @@ export class Ticker {
 
 	constructor (signer = null) {
 		this.#signer = signer
+		this.#registryPDA = pda(['registry'])[0]
 	}
 
 	async init () {
@@ -65,8 +69,8 @@ export class Ticker {
 		
 		return this.#program.methods.setOracle(oracle)
       		.accounts({
-				// @ts-ignore
 				authority: signer.publicKey,
+				// @ts-ignore
         		registry: this.#registryPDA
       		})
       		.signers([signer])
@@ -79,8 +83,8 @@ export class Ticker {
 		return this.#program.methods
 			.transferAuthority(authority)
 			.accounts({
-				// @ts-ignore
 				authority: signer.publicKey,
+				// @ts-ignore
 				registry: this.#registryPDA
 			})
 			.signers([signer])
@@ -97,49 +101,71 @@ export class Ticker {
 			.createTicker(symbol, decimals)
 			.accounts({
 				authority: signer.publicKey,
+				// @ts-ignore
 				registry: this.#registryPDA,
 				tickerData,
 				mint,
-				rent: SYSVAR_RENT_PUBKEY,
+
+				systemProgram: SystemProgram.programId,
 				tokenProgram: TOKEN_PROGRAM_ID,
-				systemProgram: SystemProgram.programId
+				rent: SYSVAR_RENT_PUBKEY,
 			})
 			.signers([signer]).rpc()
 	}
 
 	async createOrder (payload, signature) {
 		const { signer } = this
+		
+		const makerPaymentAccount = await ata(payload.paymentMint, signer.publicKey)
 
-		const [mint] = pda(['mint', payload.symbol])
+		// escrow
+		const [paymentEscrowAccount] = pda(
+			['payment_escrow', signer.publicKey.toBuffer(), payload.paymentMint.toBuffer()]
+		)
+		const [tokenEscrowAccount] = pda(
+			['token_escrow', signer.publicKey.toBuffer(), payload.tokenMint.toBuffer()]
+		)
+		const [releaseEscrowAccount] = pda(
+			['release_escrow', signer.publicKey.toBuffer(), payload.paymentMint.toBuffer()]
+		)
+		const programOwner = pda(['program_owner', payload.tokenMint.toBuffer(), payload.paymentMint.toBuffer()])[0]
+		const lpVault = await ata(payload.paymentMint, programOwner)
 
-		const [escrowOwner] = pda(['escrow', signer.publicKey.toBuffer(), mint.toBuffer()])
-		const escrowToken = await getAssociatedTokenAddress(
-			mint, escrowOwner, true, TOKEN_PROGRAM_ID, this.#program.programId
-		)
-		const escrowPayment = await getAssociatedTokenAddress(
-			mint, signer.publicKey, true, TOKEN_PROGRAM_ID, this.#program.programId
-		)
-		const vault = await getAssociatedTokenAddress(
-			mint, this.#registryPDA, true, TOKEN_PROGRAM_ID, this.#program.programId
-		)
-		const userPaymentAccount = await getAssociatedTokenAddress(
-			mint, signer.publicKey, true, TOKEN_PROGRAM_ID, this.#program.programId
-		)
+		const { oracle } = await this.registry
+		const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+			publicKey: oracle.toBuffer(),
+			message: Buffer.from(JSON.stringify(payload)),
+			signature: Buffer.from(signature)
+		})
 
-		return this.#program.methods
+		const createOrder = await this.#program.methods
       		.createOrder(payload, signature)
 			.accounts({
 				payer: signer.publicKey,
 				// @ts-ignore
 				registry: this.#registryPDA,
-				userPaymentAccount,
-				vault,
-				escrowOwner,
-				escrowToken,
-				escrowPayment
+
+				paymentMintAccount: payload.paymentMint,
+				tokenMintAccount: payload.tokenMint,
+				
+				makerPaymentAccount,
+
+				programOwner,
+				lpVault,
+				paymentEscrowAccount,
+				tokenEscrowAccount,
+				releaseEscrowAccount,
+
+				instructionSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
+				systemProgram: SystemProgram.programId,
 			})
-			.signers([signer])
-			.rpc()
+			.transaction()
+
+		const tx = new anchor.web3.Transaction()
+			.add(ed25519Ix)
+			.add(createOrder)
+
+		return this.#provider.sendAndConfirm(tx, [signer])
 	}
 }
 

@@ -43,7 +43,7 @@ pub struct Authority<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
-    #[account(mut, has_one = authority)]
+    #[account(mut, seeds = [b"registry"], bump)]
     pub registry: Account<'info, Registry>,
 }
 
@@ -59,6 +59,7 @@ pub mod ticker_token {
     }
 
     pub fn set_oracle(ctx: Context<Authority>, new_oracle: Pubkey) -> Result<()> {
+        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::InvalidAuthority);
         let registry = &mut ctx.accounts.registry;
 
         registry.oracle = new_oracle;
@@ -66,6 +67,7 @@ pub mod ticker_token {
     }
 
     pub fn transfer_authority(ctx: Context<Authority>, new_authority: Pubkey) -> Result<()> {
+        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::InvalidAuthority);
         require!(new_authority != Pubkey::default(), TickerError::InvalidAuthority);
 
         ctx.accounts.registry.authority = new_authority;
@@ -73,6 +75,7 @@ pub mod ticker_token {
     }
 
     pub fn create_ticker(ctx: Context<CreateTicker>, symbol: String, decimals: u8) -> Result<()> {
+        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::InvalidAuthority);
         ticker_create(ctx, symbol, decimals)
     }
 

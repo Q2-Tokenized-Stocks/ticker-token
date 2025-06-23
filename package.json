@@ -4,7 +4,8 @@
 		"test": "node --loader ts-node/esm --test tests/**/*.ts"
 	},
 	"dependencies": {
-		"@coral-xyz/anchor": "^0.31.1"
+		"@coral-xyz/anchor": "^0.31.1",
+		"borsh": "^2.0.0"
 	},
 	"devDependencies": {
 		"@solana/kit": "^2.1.1",

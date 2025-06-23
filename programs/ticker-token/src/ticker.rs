@@ -3,8 +3,11 @@ use anchor_spl::{
     token::{Token},
     token_interface::{initialize_mint2, InitializeMint2},
 };
-
-use crate::{Registry, errors::TickerError};
+use crate::{
+    Registry, 
+    errors::TickerError,
+    utils::assert_pda
+};
 
 #[account]
 pub struct TickerData {
@@ -19,11 +22,7 @@ pub struct CreateTicker<'info> {
     #[account(mut)]
     pub authority: Signer<'info>,
 
-    #[account(
-        seeds = [b"registry"],
-        bump,
-        has_one = authority,
-    )]
+    #[account(seeds = [b"registry"], bump)]
     pub registry: Account<'info, Registry>,
 
     #[account(
@@ -58,11 +57,10 @@ pub fn ticker_create(ctx: Context<CreateTicker>, symbol: String, decimals: u8) -
 	require!(symbol.len() <= 8, TickerError::TickerTooLong);
 
 	// Symbol of mint PDA must match the ticker symbol
-	let (expected_mint, _) = Pubkey::find_program_address(
-		&[b"mint", symbol.as_bytes()],
-		ctx.program_id
-	);
-	require!(ctx.accounts.mint.key() == expected_mint, TickerError::Unauthorized);
+    assert_pda(
+        ctx.accounts.mint.key(), 
+        &[b"mint", symbol.as_bytes()]
+    )?;
 
 	let cpi_ctx = CpiContext::new(
 		ctx.accounts.token_program.to_account_info(),

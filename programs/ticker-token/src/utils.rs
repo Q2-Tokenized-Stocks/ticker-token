@@ -3,6 +3,8 @@ use anchor_lang::solana_program::{
     sysvar::instructions::load_instruction_at_checked,
     ed25519_program::ID as ED25519_PROGRAM_ID,
 };
+use anchor_spl::associated_token::get_associated_token_address;
+
 use crate::errors::ErrorCode;
 
 pub fn verify_ed25519_ix(
@@ -36,4 +38,23 @@ pub fn verify_ed25519_ix(
     require!(message_bytes == expected_msg, ErrorCode::InvalidOracleSig);
 
     Ok(())
+}
+
+pub fn assert_ata (
+	account: Pubkey,
+	owner: &Pubkey,
+	mint: &Pubkey,
+) -> Result<()> {
+	let expected = get_associated_token_address(owner, mint);
+	require!(account == expected, ErrorCode::InvalidATA);
+	Ok(())
+}
+
+pub fn assert_pda (
+	account: Pubkey,
+	seeds: &[&[u8]],
+) -> Result<()> {
+	let (expected, _) = Pubkey::find_program_address(seeds, &crate::ID);
+	require!(account == expected, ErrorCode::InvalidPDA);
+	Ok(())
 }

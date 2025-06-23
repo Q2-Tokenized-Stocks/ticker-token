@@ -41,4 +41,16 @@ pub enum ErrorCode {
 
     #[msg("Invalid signature instruction (not ED25519 program)")]
     InvalidSignatureInstruction,
+
+    #[msg("Invalid PDA account")]
+    InvalidPDA,
+
+    #[msg("Invalid ATA account")]
+    InvalidATA,
+
+    #[msg("Invalid side")]
+    InvalidSide,
+
+    #[msg("Invalid order type")]
+    InvalidOrderType,
 }

@@ -2,10 +2,10 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 
 import { Keypair } from '@solana/web3.js'
-import TickerToken, { pda } from './ticker-tocken.ts'
+import TickerToken from './ticker-tocken.ts'
 import Oracle from './oracle.ts'
 
-import { randomString } from './utils.ts'
+import { randomString, pda } from './utils.ts'
 
 test('registry was initialized correctly', async () => {
   	const { authority } = await TickerToken.registry
@@ -39,6 +39,8 @@ test('updating oracle', async () => {
 test('can transfer authority', async () => {
 	const { authority } = await TickerToken.registry
 	const newAuthority = Keypair.generate()
+
+	// TODO: case if provide fake registry PDA
 
 	await assert.rejects(
 		TickerToken.connect(null).transferAuthority(newAuthority.publicKey),

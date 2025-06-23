@@ -23,13 +23,16 @@ pub enum OrderStatus {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct OraclePayload {
     pub id: u64,
+
     pub side: Side,
     pub order_type: OrderType,
-    pub symbol: [u8; 8],
+
+    pub token_mint: Pubkey,
     pub amount: u64,
+
+    pub payment_mint: Pubkey,
     pub price: u64,
     pub fee: u64,
-    pub payment_mint: Pubkey,
-    pub expires_at: Option<i64>,
-    pub token_mint: Pubkey, // новое поле
+
+    pub expires_at: i64,
 }
