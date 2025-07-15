@@ -17,7 +17,6 @@ declare_id!("8mPWhPVTKG4zXp5JFqsxA5ZMNhUqWThz5MJjrQS4VB4Z");
 #[account]
 pub struct Registry {
     pub authority: Pubkey,
-    pub oracle: Pubkey,
 }
 
 #[derive(Accounts)]
@@ -32,7 +31,6 @@ pub struct Init<'info> {
         payer = payer,
         space = 8					// Anchor-дескриптор (дисриминатор, нужен всегда)
               + 32                  // authority: Pubkey
-              + 32                  // oracle: Pubkey
     )]
     pub registry: Account<'info, Registry>,
     pub system_program: Program<'info, System>,
@@ -58,16 +56,8 @@ pub mod ticker_token {
         Ok(())
     }
 
-    pub fn set_oracle(ctx: Context<Authority>, new_oracle: Pubkey) -> Result<()> {
-        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::InvalidAuthority);
-        let registry = &mut ctx.accounts.registry;
-
-        registry.oracle = new_oracle;
-        Ok(())
-    }
-
     pub fn transfer_authority(ctx: Context<Authority>, new_authority: Pubkey) -> Result<()> {
-        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::InvalidAuthority);
+        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::Unauthorized);
         require!(new_authority != Pubkey::default(), TickerError::InvalidAuthority);
 
         ctx.accounts.registry.authority = new_authority;
@@ -75,12 +65,23 @@ pub mod ticker_token {
     }
 
     pub fn create_ticker(ctx: Context<CreateTicker>, symbol: String, decimals: u8) -> Result<()> {
-        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::InvalidAuthority);
-        ticker_create(ctx, symbol, decimals)
+        require!(ctx.accounts.payer.key() == ctx.accounts.registry.authority, TickerError::Unauthorized);
+        msg!("Created ticker: {} with decimals: {}", symbol, decimals);
+
+        Ok(())
     }
 
-    pub fn create_order(ctx: Context<CreateOrder>, payload: OraclePayload, sig: [u8; 64]) -> Result<()> {
-        order_create(ctx, payload, sig)
+    pub fn ticker_metadata(ctx: Context<CreateMetadata>, name: String, symbol: String, uri: String) -> Result<()> {
+        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::Unauthorized);
+        ticker::metadata(ctx, name, symbol, uri)
+    }
+
+    //pub fn create_order(ctx: Context<CreateOrder>, payload: OraclePayload, sig: [u8; 64]) -> Result<()> {
+    //    order_create(ctx, payload, sig)
+    //}
+
+    pub fn create_buy_order(ctx: Context<CreateBuyOrder>, payload: OrderPayload) -> Result<()> {
+        order::buy::create(ctx, payload)
     }
 }
 

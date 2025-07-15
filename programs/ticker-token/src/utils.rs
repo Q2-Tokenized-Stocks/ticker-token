@@ -4,6 +4,7 @@ use anchor_lang::solana_program::{
     ed25519_program::ID as ED25519_PROGRAM_ID,
 };
 use anchor_spl::associated_token::get_associated_token_address;
+//use anchor_spl::token_interface::TokenAccount;
 
 use crate::errors::ErrorCode;
 
@@ -17,25 +18,15 @@ pub fn verify_ed25519_ix(
 
     let data = &ix.data;
 
-    // Формат ed25519-инструкции:
-    // https://docs.solana.com/developing/runtime-facilities/programs#ed25519-program
-    if data.len() < 1 + 1 + 2*6 + 64 + 32 {
-        return Err(ErrorCode::InvalidSignatureInstruction.into());
-    }
+    let pubkey_off = u16::from_le_bytes([data[6], data[7]]) as usize;
+    let msg_off = u16::from_le_bytes([data[10], data[11]]) as usize;
+    let msg_len = u16::from_le_bytes([data[12], data[13]]) as usize;
 
-    // Извлекаем смещения
-    let pubkey_offset = u16::from_le_bytes([data[6], data[7]]) as usize;
-    let message_offset = u16::from_le_bytes([data[10], data[11]]) as usize;
-    let message_size = u16::from_le_bytes([data[12], data[13]]) as usize;
+    let actual_pubkey = &data[pubkey_off..pubkey_off + 32];
+    let actual_msg = &data[msg_off..msg_off + msg_len];
 
-    require!(data.len() >= message_offset + message_size, ErrorCode::InvalidSignatureInstruction);
-    require!(data.len() >= pubkey_offset + 32, ErrorCode::InvalidSignatureInstruction);
-
-    let pubkey_bytes = &data[pubkey_offset..pubkey_offset + 32];
-    let message_bytes = &data[message_offset..message_offset + message_size];
-
-    require!(pubkey_bytes == expected_pubkey.as_ref(), ErrorCode::InvalidOracleSig);
-    require!(message_bytes == expected_msg, ErrorCode::InvalidOracleSig);
+    require!(actual_pubkey == expected_pubkey.as_ref(), ErrorCode::InvalidOracleSig);
+    require!(actual_msg == expected_msg, ErrorCode::InvalidOracleSig);
 
     Ok(())
 }
@@ -58,3 +49,13 @@ pub fn assert_pda (
 	require!(account == expected, ErrorCode::InvalidPDA);
 	Ok(())
 }
+
+//pub fn assert_token_account(
+//    acc: &TokenAccount,
+//    expected_mint: &Pubkey,
+//    expected_authority: &Pubkey,
+//) -> Result<()> {
+//    require_keys_eq!(acc.mint, *expected_mint, ErrorCode::InvalidMint);
+//    require_keys_eq!(acc.owner, *expected_authority, ErrorCode::InvalidAuthority);
+//    Ok(())
+//}

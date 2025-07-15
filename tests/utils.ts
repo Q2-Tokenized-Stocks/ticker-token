@@ -12,9 +12,12 @@ const provider = anchor.getProvider()
 
 export const randomString = (length = 6) => Math.random().toString(36).substring(2, 2 + length).toUpperCase()
 
-export const pda = (seeds = []) => PublicKey.findProgramAddressSync(
+export const pda = (
+	seeds = [], 
+	programId = anchor.workspace.tickerToken.programId
+) => PublicKey.findProgramAddressSync(
 	seeds.map(seed => Buffer.from(seed)),
-	anchor.workspace.tickerToken.programId
+	programId
 )
 
 export async function createPDA (address, mint, signer) {

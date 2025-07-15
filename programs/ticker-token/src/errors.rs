@@ -8,6 +8,8 @@ pub enum TickerError {
     TickerTooLong,
     #[msg("New authority must not be zero")]
     InvalidAuthority,
+    #[msg("Invalid metadata PDA")]
+    InvalidMetadataPda,
 }
 
 #[error_code]

@@ -1,15 +1,15 @@
 use anchor_lang::prelude::*;
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
-pub enum Side {
-    Buy,
-    Sell,
-}
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
 pub enum OrderType {
     Market,
     Limit,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+pub enum OrderSide {
+    Buy,
+    Sell,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
@@ -21,13 +21,11 @@ pub enum OrderStatus {
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
-pub struct OraclePayload {
+pub struct OrderPayload {
     pub id: u64,
+    pub order_type: u8,
 
-    pub side: Side,
-    pub order_type: OrderType,
-
-    pub token_mint: Pubkey,
+    pub ticker_mint: Pubkey,
     pub amount: u64,
 
     pub payment_mint: Pubkey,

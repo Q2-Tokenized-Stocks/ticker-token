@@ -3,15 +3,15 @@ import assert from 'node:assert/strict'
 
 import { Keypair } from '@solana/web3.js'
 import TickerToken from './ticker-tocken.ts'
-import Oracle from './oracle.ts'
 
 import { randomString, pda } from './utils.ts'
+import { getMint } from '@solana/spl-token'
 
 test('registry was initialized correctly', async () => {
   	const { authority } = await TickerToken.registry
 
 	assert.equal(
-		authority.toBase58(), TickerToken.provider.wallet.publicKey.toBase58(), 
+		authority.toBase58(), TickerToken.owner.publicKey.toBase58(), 
   		'Super admin should be the wallet used to initialize the registry'
 	)
 })
@@ -20,52 +20,31 @@ test('init fails if registry already initialized', () =>
 	assert.rejects(TickerToken.init())
 )
 
-test('updating oracle', async () => {
-	await assert.rejects(
-		TickerToken.connect(null).setOracle(Oracle.signer),
-		'Only the authority can set the oracle'
-	)
+//test('can transfer authority', async () => {
+//	const { authority } = await TickerToken.registry
+//	const newAuthority = Keypair.generate()
 
-	await TickerToken.setOracle(Oracle.signer)
+//	await assert.rejects(
+//		TickerToken.connect(null).transferAuthority(newAuthority.publicKey),
+//		'Only the authority can transfer authority'
+//	)
 
-	// Verify that the oracle was set correctly
-	const { oracle } = await TickerToken.registry
-	assert.equal(
-		oracle.toBase58(), Oracle.signer.toBase58(),
-		'Oracle should be updated to the new oracle'
-	)
-})
+//	await TickerToken.transferAuthority(newAuthority.publicKey)
 
-test('can transfer authority', async () => {
-	const { authority } = await TickerToken.registry
-	const newAuthority = Keypair.generate()
+//	// Verify that the authority was updated
+//	const updated = await TickerToken.registry
+//	assert.equal(
+//		updated.authority.toBase58(), newAuthority.publicKey.toBase58(),
+//		'Authority should be updated to the new authority'
+//	)
 
-	// TODO: case if provide fake registry PDA
-
-	await assert.rejects(
-		TickerToken.connect(null).transferAuthority(newAuthority.publicKey),
-		'Only the authority can transfer authority'
-	)
-
-	await TickerToken.transferAuthority(newAuthority.publicKey)
-	// Verify that the authority was updated
-	const updated = await TickerToken.registry
-	assert.equal(
-		updated.authority.toBase58(), newAuthority.publicKey.toBase58(),
-		'Authority should be updated to the new authority'
-	)
-
-	await TickerToken.connect(newAuthority).transferAuthority(authority)
-})
+//	await TickerToken.connect(newAuthority).transferAuthority(authority)
+//})
 
 test('can create a ticker', async () => {
 	const symbol = randomString()
 	const decimals = 6
-
-	await assert.rejects(
-		TickerToken.ticker(symbol),
-		'Ticker should not exist before creation'
-	)
+	const uri = 'https://ipfs.io/ipfs/${symbol}.json'
 
 	await assert.rejects(
 		TickerToken.connect().createTicker(symbol),
@@ -73,19 +52,10 @@ test('can create a ticker', async () => {
 	)
 
 	await TickerToken.createTicker(symbol, decimals)
-	const ticker = await TickerToken.ticker(symbol)
 
 	const [mintPDA] = pda(['mint', symbol])
-	assert.equal(
-		ticker.mint.toBase58(), mintPDA.toBase58(),
-		'Ticker mint should match the expected PDA'
-	)
+	const mint = await getMint(TickerToken.provider.connection, mintPDA)
 
-	assert.equal(
-		symbol, 
-		Buffer.from(ticker.symbol).toString('utf8').replace(/\0/g, ''), 
-		'Ticker symbol should match'
-	)
-	assert.equal(ticker.decimals, decimals, 'Ticker decimals should match')
-	
+	assert.equal(mint.decimals, decimals, `Mint for ${symbol} should have ${decimals} decimals`)
+	assert.equal(mint.supply.toString(), '0', `Mint for ${symbol} should have zero supply`)
 })

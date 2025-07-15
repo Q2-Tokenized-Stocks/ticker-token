@@ -1,86 +1,94 @@
-import nacl, { randomBytes } from 'tweetnacl'
 import BN from 'bn.js'
+import { keccak_256 } from '@noble/hashes/sha3.js'
 
 import { PublicKey } from '@solana/web3.js'
-import Ticker from './ticker-tocken.ts'
+import { createKeyPairFromBytes, createPrivateKeyFromBytes, fixCodecSize, getBytesCodec, getStructCodec, getU64Codec, getU8Codec, signBytes } from '@solana/kit'
 
 import { SPLToken } from './spl.ts'
-import { ata, createUser, pda, randomString, splAccount } from './utils.ts'
-
-type OrderSide = { buy: {} } | { sell: {} }
-type OrderType = { market: {} } | { limit: {} }
+import { pda, randomString } from './utils.ts'
+import Ticker from './ticker-tocken.ts'
 
 export type OraclePayload = {
 	id : BN
-	side : OrderSide
-	orderType : OrderType
+	orderType : BN // 0 for market, 1 for limit
+
+	tickerMint : PublicKey
 	amount : BN
+
+	paymentMint : PublicKey
 	price : BN
 	fee : BN
 
-	tokenMint : PublicKey
-	paymentMint : PublicKey
-
-	expiresAt : BN | null
+	expiresAt : BN
 }
 
-const TTL = 60 // 60 seconds
-const fee = .1 // 10% fee
+const payloadCodec = getStructCodec([
+	['id', getU64Codec()],
+	['orderType', getU8Codec()], // 0 for market, 1 for
+	['tickerMint', fixCodecSize(getBytesCodec(), 32)],
+	['amount', getU64Codec()],
+	['paymentMint', fixCodecSize(getBytesCodec(), 32)],
+	['price', getU64Codec()],
+	['fee', getU64Codec()],
+	['expiresAt', getU64Codec()]
+])
 
-const admin = Ticker.signer
+const TTL = 60 // 60 seconds
+const fee = 10 // 10% fee
 
 export class Oracle {
-	#keypair = nacl.sign.keyPair()
-	get signer () { 
-		return new PublicKey(this.#keypair.publicKey)
+	#secretKey = Ticker.signer.secretKey
+	get secretKey () { return this.#secretKey }
+
+	constructor (secretKey = Ticker.signer.secretKey) {
+		this.#secretKey = secretKey
 	}
 
 	async order (symbol: string, side: 'buy' | 'sell', amount: number, price?: number) {
-		const { signer } = this
-
-		const orderType : OrderType = price ? { limit: {} } : { market: {} }
+		const orderType = new BN(price ? 1 : 0) // 0 for market, 1 for limit
 		const now = Math.floor(Date.now() / 1000)
 
 		price ??= Math.floor(Math.random() * 100 + 1)
 
-		const ticker = await Ticker.ticker(symbol)
+		const [tickerMint] = pda(['mint', symbol])
 		const paymentToken = await SPLToken.create(randomString())
 
-		const [programOwner] = pda(['program_owner', ticker.mint.toBuffer(), paymentToken.mint.toBuffer()])
-		
-		// lp vault (ATA for liqidity provider, create it if not exists)
-		await splAccount(
-			await ata(paymentToken.mint, programOwner), 
-			paymentToken.mint, admin, programOwner
-		)
+		const bnPrice = new BN(price)
+		const bnAmount = new BN(amount)
+		const bnFee = bnPrice.mul(bnAmount).muln(fee).divn(100)
 
 		const payload = {
 			id: new BN(now),
-
-			side: { [side]: {} } as OrderSide,
 			orderType,
 
-			tokenMint: ticker.mint,
+			tickerMint: tickerMint,
 			amount: new BN(amount),
 
 			paymentMint: paymentToken.mint,
-			price: new BN(price),
-			fee: new BN(Math.floor(price * amount * fee)),
+			price: bnPrice,
+			fee: bnFee,
 			
 			expiresAt: new BN(now + TTL)
 		}
 
-		const signature = await this.sign(payload)
-		return { payload, signature, _paymentToken: paymentToken }
+		const { signature, message } = await this.sign(payload)
+		return { payload, message, signature, _paymentToken: paymentToken }
 	}
 
-	sign (payload : OraclePayload) {
-		const { secretKey } = this.#keypair
+	async sign (payload : OraclePayload) {
+		const { secretKey } = this
+		const { privateKey } = await createKeyPairFromBytes(secretKey)
 
-		const message = new TextEncoder().encode(JSON.stringify(payload))
-		const sig = nacl.sign.detached(message, secretKey)
+		const encoded = payloadCodec.encode({
+			...payload,
+			tickerMint: payload.tickerMint.toBytes(),
+			paymentMint: payload.paymentMint.toBytes()
+		})
 
-		return Array.from(sig)
+		const message = keccak_256(new Uint8Array(encoded))
+		const signature = await signBytes(privateKey, message)
+
+		return { signature: Array.from(signature), message }
 	}
 }
 
