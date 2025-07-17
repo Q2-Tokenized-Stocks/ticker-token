@@ -48,6 +48,10 @@ export class SPLToken {
 
 		return account
 	}
+
+	async account (address: anchor.web3.PublicKey) {
+		return splAccount(await ata(this.mint, address), this.mint)
+	}
 }
 
 export const USDC = await SPLToken.create('USDC', 6)

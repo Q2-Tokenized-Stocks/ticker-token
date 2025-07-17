@@ -16,7 +16,7 @@ export const pda = (
 	seeds = [], 
 	programId = anchor.workspace.tickerToken.programId
 ) => PublicKey.findProgramAddressSync(
-	seeds.map(seed => Buffer.from(seed)),
+	seeds.map(s => Buffer.isBuffer(s) ? s : Buffer.from(s)),
 	programId
 )
 
@@ -80,7 +80,7 @@ export async function splAccount (address : PublicKey, mint, payer?, owner?) {
 	const account = await provider.connection.getAccountInfo(address)
 
 	if (account) return getAccount(provider.connection, address)
-	if (!payer) 
+	if (!payer)
 		throw new Error('Payer is required to create a new account')
 
 	const ata = await getAssociatedTokenAddress(

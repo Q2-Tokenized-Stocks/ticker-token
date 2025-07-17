@@ -51,8 +51,11 @@ pub enum ErrorCode {
     InvalidATA,
 
     #[msg("Invalid side")]
-    InvalidSide,
+    InvalidOrderSide,
 
     #[msg("Invalid order type")]
     InvalidOrderType,
+
+    #[msg("Insufficient funds")]
+    InsufficientFunds,
 }

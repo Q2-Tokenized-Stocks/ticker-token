@@ -2,15 +2,20 @@ import BN from 'bn.js'
 import { keccak_256 } from '@noble/hashes/sha3.js'
 
 import { PublicKey } from '@solana/web3.js'
-import { createKeyPairFromBytes, createPrivateKeyFromBytes, fixCodecSize, getBytesCodec, getStructCodec, getU64Codec, getU8Codec, signBytes } from '@solana/kit'
+import { createKeyPairFromBytes, fixCodecSize, getBytesCodec, getU8Codec, getStructCodec, getU64Codec, signBytes } from '@solana/kit'
 
 import { SPLToken } from './spl.ts'
 import { pda, randomString } from './utils.ts'
 import Ticker from './ticker-tocken.ts'
 
+enum OrderType { Market, Limit }
+export enum OrderSide { Buy, Sell }
+
 export type OraclePayload = {
 	id : BN
-	orderType : BN // 0 for market, 1 for limit
+
+	//orderType : OrderType
+	//orderSide : OrderSide
 
 	tickerMint : PublicKey
 	amount : BN
@@ -24,7 +29,6 @@ export type OraclePayload = {
 
 const payloadCodec = getStructCodec([
 	['id', getU64Codec()],
-	['orderType', getU8Codec()], // 0 for market, 1 for
 	['tickerMint', fixCodecSize(getBytesCodec(), 32)],
 	['amount', getU64Codec()],
 	['paymentMint', fixCodecSize(getBytesCodec(), 32)],
@@ -44,8 +48,8 @@ export class Oracle {
 		this.#secretKey = secretKey
 	}
 
-	async order (symbol: string, side: 'buy' | 'sell', amount: number, price?: number) {
-		const orderType = new BN(price ? 1 : 0) // 0 for market, 1 for limit
+	async order (symbol: string, orderSide: OrderSide, amount: number, price?: number) {
+		//const orderType = price ? OrderType.Limit : OrderType.Market
 		const now = Math.floor(Date.now() / 1000)
 
 		price ??= Math.floor(Math.random() * 100 + 1)
@@ -59,14 +63,15 @@ export class Oracle {
 
 		const payload = {
 			id: new BN(now),
-			orderType,
+			//orderType,
+			//orderSide,
 
 			tickerMint: tickerMint,
-			amount: new BN(amount),
+			amount: new BN(amount) as BN,
 
 			paymentMint: paymentToken.mint,
-			price: bnPrice,
-			fee: bnFee,
+			price: bnPrice as BN,
+			fee: bnFee as BN,
 			
 			expiresAt: new BN(now + TTL)
 		}

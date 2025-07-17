@@ -56,7 +56,7 @@ export class Ticker {
 			],
 			this.#program.programId
 		)
-		return this.#program.account.orderState.fetch(orderPda)
+		return this.#program.account.order.fetch(orderPda)
 	}
 
 	async init () {
@@ -143,7 +143,6 @@ export class Ticker {
 			.add(ed25519Ix)
 			.add(createOrder)
 
-		//const txid = await this.#provider.sendAndConfirm(tx, [signer])
 		const txid = await this.#provider.sendAndConfirm(tx, [signer], {
 			commitment: 'confirmed'
 		})

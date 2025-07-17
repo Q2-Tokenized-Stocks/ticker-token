@@ -76,12 +76,12 @@ pub mod ticker_token {
         ticker::metadata(ctx, name, symbol, uri)
     }
 
-    //pub fn create_order(ctx: Context<CreateOrder>, payload: OraclePayload, sig: [u8; 64]) -> Result<()> {
-    //    order_create(ctx, payload, sig)
-    //}
-
     pub fn create_buy_order(ctx: Context<CreateBuyOrder>, payload: OrderPayload) -> Result<()> {
-        order::buy::create(ctx, payload)
+        order::create::buy(ctx, payload)
+    }
+
+    pub fn create_sell_order(ctx: Context<CreateSellOrder>, payload: OrderPayload) -> Result<()> {
+        order::create::sell(ctx, payload)
     }
 }
 
