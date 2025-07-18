@@ -6,7 +6,6 @@ import { createKeyPairFromBytes, fixCodecSize, getBytesCodec, getU8Codec, getStr
 
 import { SPLToken } from './spl.ts'
 import { pda, randomString } from './utils.ts'
-import Ticker from './ticker-tocken.ts'
 
 enum OrderType { Market, Limit }
 export enum OrderSide { Buy, Sell }
@@ -41,20 +40,20 @@ const TTL = 60 // 60 seconds
 const fee = 10 // 10% fee
 
 export class Oracle {
-	#secretKey = Ticker.signer.secretKey
+	#secretKey
 	get secretKey () { return this.#secretKey }
 
-	constructor (secretKey = Ticker.signer.secretKey) {
+	constructor (secretKey) {
 		this.#secretKey = secretKey
 	}
 
-	async order (symbol: string, orderSide: OrderSide, amount: number, price?: number) {
+	async order (programId, symbol: string, orderSide: OrderSide, amount: number, price?: number) {
 		//const orderType = price ? OrderType.Limit : OrderType.Market
 		const now = Math.floor(Date.now() / 1000)
 
 		price ??= Math.floor(Math.random() * 100 + 1)
 
-		const [tickerMint] = pda(['mint', symbol])
+		const [tickerMint] = pda(['mint', symbol], programId)
 		const paymentToken = await SPLToken.create(randomString())
 
 		const bnPrice = new BN(price)
@@ -96,5 +95,3 @@ export class Oracle {
 		return { signature: Array.from(signature), message }
 	}
 }
-
-export default new Oracle

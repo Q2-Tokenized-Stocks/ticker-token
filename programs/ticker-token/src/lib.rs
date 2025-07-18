@@ -83,5 +83,10 @@ pub mod ticker_token {
     pub fn create_sell_order(ctx: Context<CreateSellOrder>, payload: OrderPayload) -> Result<()> {
         order::create::sell(ctx, payload)
     }
+
+    pub fn cancel_order(ctx: Context<CancelOrder>, id: u64) -> Result<()> {
+        require!(ctx.accounts.payer.key() == ctx.accounts.order.maker, TickerError::Unauthorized);
+        order::cancel(ctx, id)
+    }
 }
 

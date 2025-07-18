@@ -58,4 +58,22 @@ pub enum ErrorCode {
 
     #[msg("Insufficient funds")]
     InsufficientFunds,
+
+    #[msg("Order already processed")]
+    OrderAlreadyProcessed,
+
+    #[msg("Invalid escrow mint")]
+    InvalidEscrowMint,
+
+    #[msg("Invalid escrow owner")]
+    InvalidEscrowOwner,
+
+    #[msg("Invalid refund mint")]
+    InvalidRefundMint,
+
+    #[msg("Invalid refund owner")]
+    InvalidRefundOwner,
+
+    #[msg("Bump seed not found")]
+    BumpNotFound,
 }

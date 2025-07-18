@@ -61,15 +61,14 @@ pub struct CreateBuyOrder<'info> {
 		init_if_needed,
 		payer = payer,
         seeds = [
-			b"payment_escrow", 
-			payer.key().as_ref(), 
-			payload.payment_mint.as_ref()
+			b"escrow", 
+			order.key().as_ref()
 		],
         bump,
 		token::mint = payment_mint_account,
 		token::authority = order
     )]
-    pub escrow_payment_account: Account<'info, TokenAccount>,	
+    pub escrow_account: Account<'info, TokenAccount>,	
 
 	pub rent: Sysvar<'info, Rent>,
 
@@ -121,15 +120,14 @@ pub struct CreateSellOrder<'info> {
 		init_if_needed,
 		payer = payer,
 		seeds = [
-			b"ticker_escrow",
-			payer.key().as_ref(),
-			payload.ticker_mint.as_ref()
+			b"escrow",
+			order.key().as_ref(),
 		],
 		bump,
 		token::mint = ticker_mint_account,
 		token::authority = order
 	)]
-	pub escrow_ticker_account: Account<'info, TokenAccount>,
+	pub escrow_account: Account<'info, TokenAccount>,
 
 	pub rent: Sysvar<'info, Rent>,
 
@@ -219,19 +217,11 @@ pub fn buy(ctx: Context<CreateBuyOrder>, payload: OrderPayload) -> Result<()> {
 		amount,
 
 		ctx.accounts.maker_payment_account.to_account_info(),
-		ctx.accounts.escrow_payment_account.to_account_info(),
+		ctx.accounts.escrow_account.to_account_info(),
 		ctx.accounts.token_program.to_account_info(),
 
 		ctx.accounts.instruction_sysvar.clone(),
-	);
-
-	use anchor_spl::associated_token::get_associated_token_address;
-	let escrow_ata = get_associated_token_address(
-		&ctx.accounts.payment_mint_account.key(),
-		&ctx.accounts.order.key()
-	);
-	msg!("escrow ATA: {}", escrow_ata);
-	Ok(())
+	)
 }
 
 pub fn sell(ctx: Context<CreateSellOrder>, payload: OrderPayload) -> Result<()> {
@@ -245,7 +235,7 @@ pub fn sell(ctx: Context<CreateSellOrder>, payload: OrderPayload) -> Result<()> 
 		payload.amount,
 		
 		ctx.accounts.maker_ticker_account.to_account_info(),
-		ctx.accounts.escrow_ticker_account.to_account_info(),
+		ctx.accounts.escrow_account.to_account_info(),
 		ctx.accounts.token_program.to_account_info(),
 
 		ctx.accounts.instruction_sysvar.clone()

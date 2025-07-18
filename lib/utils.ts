@@ -7,14 +7,13 @@ import {
 } from '@solana/spl-token'
 import { PublicKey, SystemProgram, Transaction } from '@solana/web3.js'
 
-const TOKEN_ACCOUNT_LEN = 165 // 165 bytes for a token account
 const provider = anchor.getProvider()
 
 export const randomString = (length = 6) => Math.random().toString(36).substring(2, 2 + length).toUpperCase()
 
 export const pda = (
 	seeds = [], 
-	programId = anchor.workspace.tickerToken.programId
+	programId
 ) => PublicKey.findProgramAddressSync(
 	seeds.map(s => Buffer.isBuffer(s) ? s : Buffer.from(s)),
 	programId

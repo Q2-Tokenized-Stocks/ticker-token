@@ -1,7 +1,7 @@
 {
 	"type": "module",
 	"scripts": {
-		"test": "node --loader ts-node/esm --test tests/**/*.ts"
+		"test": "node --loader ts-node/esm --test --test-concurrency=1 tests/**/*.ts"
 	},
 	"dependencies": {
 		"@coral-xyz/anchor": "^0.31.1",

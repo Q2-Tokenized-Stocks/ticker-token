@@ -17,7 +17,6 @@ pub enum OrderStatus {
     Pending,
     Processing,
     Done,
-    Cancelled,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]

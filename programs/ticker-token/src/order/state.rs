@@ -10,12 +10,18 @@ pub struct OrderCreated {
     pub expires_at: i64,
 }
 
+#[event]
+pub struct OrderCancelled {
+	pub id: u64,
+	pub maker: Pubkey,
+	pub cancelled_at: i64,
+}
+
 #[account]
 pub struct Order {
     pub id: u64, // уникальный идентификатор заявки
     
     pub side: OrderSide, // сторона заявки (Buy, Sell)
-    
     pub maker: Pubkey, // адрес создателя ордера
     
     pub ticker_mint: Pubkey, // адрес тиккер токена

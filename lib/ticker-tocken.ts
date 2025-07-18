@@ -12,25 +12,24 @@ import { TickerToken } from '~/target/types/ticker_token'
 import IDL from '../target/idl/ticker_token.json' with { type: 'json' }
 
 import { pda, ata } from './utils.ts'
-import type { OraclePayload } from './oracle'
+import type { OraclePayload } from './oracle.ts'
 
 export const METAPLEX_PROGRAM_ID = new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s")
 
 anchor.setProvider(anchor.AnchorProvider.env())
 
 export class Ticker {
-
 	get owner () {
 		return this.provider.wallet.payer
 	}
 
 	get idl () { return IDL as anchor.Idl }
-
-	#program = anchor.workspace.ticker_token as anchor.Program<TickerToken>
-	get program () { return this.#program }
 	
 	#provider = anchor.getProvider()
 	get provider () { return this.#provider }
+
+	#program = anchor.workspace.ticker_token as anchor.Program<TickerToken>
+	get program () { return this.#program }
 
 	#signer = null
 	get signer () { return (this.#signer || this.#provider.wallet.payer) as Keypair }
@@ -44,23 +43,25 @@ export class Ticker {
 
 	constructor (signer = null) {
 		this.#signer = signer
-		this.#registryPDA = pda(['registry'])[0]
+		this.#registryPDA = this.pda(['registry'])
+	}
+
+	pda (seeds : any[]) {
+		return pda(seeds, this.#program.programId)[0]
 	}
 
 	async order (maker : PublicKey, id : number) {
-		const [orderPda] = PublicKey.findProgramAddressSync(
-			[
-				Buffer.from('order'),
-				maker.toBuffer(),
-				new BN(id).toArrayLike(Buffer, 'le', 8)
-			],
-			this.#program.programId
+		const orderPda = this.pda(
+			['order', maker.toBuffer(), new BN(id).toArrayLike(Buffer, 'le', 8)]
 		)
 		return this.#program.account.order.fetch(orderPda)
 	}
 
 	async init () {
 		const { signer } = this
+
+		if (await this.#program.account.registry.fetchNullable(this.#registryPDA))
+			return this
 
 		await this.#program.methods
 			.init()
@@ -91,9 +92,7 @@ export class Ticker {
 
 	createTicker (symbol : string, decimals = 0) {
 		const { signer } = this
-		
-		const [mint] = pda(['mint', symbol])
-		//const [mintAuthority] = pda(['mint_authority'])
+		const mint = this.pda(['mint', symbol])
 
 		return this.#program.methods
 			.createTicker(symbol, decimals)
@@ -101,8 +100,6 @@ export class Ticker {
 				// @ts-ignore
 				registry: this.#registryPDA,
 				mint,
-				//mintAuthority,
-
 				systemProgram: SystemProgram.programId,
 				tokenProgram: TOKEN_PROGRAM_ID,
 				rent: SYSVAR_RENT_PUBKEY,
@@ -152,8 +149,23 @@ export class Ticker {
 			maxSupportedTransactionVersion: 0
 		})
 	}
+
+	async cancel (orderId : number) {
+		const { signer } = this
+
+		const order = await this.order(signer.publicKey, orderId) as any
+		const refundAccount = await ata(order.paymentMint, signer.publicKey)
+
+		return this.#program.methods
+			.cancelOrder(orderId)
+			.accounts({
+				payer: signer.publicKey,
+				// @ts-ignore
+				refundAccount
+			})
+			.signers([signer]).rpc()
+	}
 }
 
-const ticker = new Ticker()
-await ticker.init()
-export default ticker
+const TickerToken = await new Ticker().init()
+export default TickerToken
