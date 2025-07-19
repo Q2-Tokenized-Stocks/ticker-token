@@ -6,7 +6,7 @@ pub struct OrderCreated {
     pub id: u64,
     pub maker: Pubkey,
 
-    pub created_at: i64,
+    pub timestamp: i64,
     pub expires_at: i64,
 }
 
@@ -14,7 +14,26 @@ pub struct OrderCreated {
 pub struct OrderCancelled {
 	pub id: u64,
 	pub maker: Pubkey,
-	pub cancelled_at: i64,
+	pub timestamp: i64,
+}
+
+#[event]
+pub struct OrderExecuted {
+    pub id: u64,
+
+    pub side: OrderSide,
+    pub maker: Pubkey,
+
+    pub ticker_mint: Pubkey,
+    pub amount: u64,
+
+    pub payment_mint: Pubkey,
+    pub price: u64,
+    pub fee: u64,
+
+    pub proof_cid: [u8; 32],
+
+    pub timestamp: i64,
 }
 
 #[account]

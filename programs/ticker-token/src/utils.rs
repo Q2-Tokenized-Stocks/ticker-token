@@ -2,17 +2,20 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{
     sysvar::instructions::load_instruction_at_checked,
     ed25519_program::ID as ED25519_PROGRAM_ID,
+    keccak,
 };
 use anchor_spl::associated_token::get_associated_token_address;
-//use anchor_spl::token_interface::TokenAccount;
 
 use crate::errors::ErrorCode;
 
 pub fn verify_ed25519_ix(
     instruction_sysvar: &AccountInfo,
     expected_pubkey: &Pubkey,
-    expected_msg: &[u8],
+    serialized_data: &[u8],
 ) -> Result<()> {
+    let hash = keccak::hash(&serialized_data);
+    let expected_msg = hash.as_ref();
+
     let ix = load_instruction_at_checked(0, instruction_sysvar)?;
     require!(ix.program_id == ED25519_PROGRAM_ID, ErrorCode::InvalidSignatureInstruction);
 

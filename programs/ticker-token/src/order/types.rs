@@ -1,12 +1,12 @@
 use anchor_lang::prelude::*;
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
 pub enum OrderType {
     Market,
     Limit,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
 pub enum OrderSide {
     Buy,
     Sell,
@@ -16,7 +16,6 @@ pub enum OrderSide {
 pub enum OrderStatus {
     Pending,
     Processing,
-    Done,
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]

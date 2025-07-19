@@ -1,12 +1,7 @@
 import * as anchor from '@coral-xyz/anchor'
 import BN from 'bn.js'
 
-import { 
-	Keypair, PublicKey, Ed25519Program,
-	SystemProgram, SYSVAR_INSTRUCTIONS_PUBKEY, SYSVAR_RENT_PUBKEY 
-} from '@solana/web3.js'
-
-import { TOKEN_PROGRAM_ID } from '@solana/spl-token'
+import { Keypair, PublicKey, Ed25519Program } from '@solana/web3.js'
 
 import { TickerToken } from '~/target/types/ticker_token'
 import IDL from '../target/idl/ticker_token.json' with { type: 'json' }
@@ -50,6 +45,24 @@ export class Ticker {
 		return pda(seeds, this.#program.programId)[0]
 	}
 
+	async supply (ticker : string) {
+		const mint = this.pda(['mint', ticker])
+		const account = await this.provider.connection.getTokenSupply(mint)
+		return BigInt(account.value.amount)
+	}
+
+	async balance (ticker : string, address : PublicKey) {
+		const mint = this.pda(['mint', ticker])
+		const account = await this.provider.connection.getTokenAccountsByOwner(
+			address, { mint }
+		)
+		const balance = await this.provider.connection.getTokenAccountBalance(
+			account.value[0].pubkey
+		)
+
+		return BigInt(balance.value.amount)
+	}
+
 	async order (maker : PublicKey, id : number) {
 		const orderPda = this.pda(
 			['order', maker.toBuffer(), new BN(id).toArrayLike(Buffer, 'le', 8)]
@@ -65,12 +78,7 @@ export class Ticker {
 
 		await this.#program.methods
 			.init()
-			.accounts({
-				payer: signer.publicKey,
-				// @ts-ignore
-				registry: this.#registryPDA,
-				systemProgram: SystemProgram.programId
-			})
+			.accounts({ payer: signer.publicKey })
 			.rpc()
 
 		return this
@@ -81,11 +89,7 @@ export class Ticker {
 
 		return this.#program.methods
 			.transferAuthority(authority)
-			.accounts({
-				authority: signer.publicKey,
-				// @ts-ignore
-				registry: this.#registryPDA
-			})
+			.accounts({ authority: signer.publicKey })
 			.signers([signer])
 			.rpc()
 	}
@@ -96,14 +100,8 @@ export class Ticker {
 
 		return this.#program.methods
 			.createTicker(symbol, decimals)
-			.accounts({
-				// @ts-ignore
-				registry: this.#registryPDA,
-				mint,
-				systemProgram: SystemProgram.programId,
-				tokenProgram: TOKEN_PROGRAM_ID,
-				rent: SYSVAR_RENT_PUBKEY,
-			})
+			// @ts-ignore
+			.accounts({ mint })
 			.signers([signer]).rpc()
 	}
 
@@ -123,16 +121,41 @@ export class Ticker {
       		.createBuyOrder(payload)
 			.accounts({
 				payer: signer.publicKey,
-				// @ts-ignore
-				registry: this.#registryPDA,
-
+				
 				tickerMintAccount: payload.tickerMint,
 				paymentMintAccount: payload.paymentMint,
-				
-				makerPaymentAccount,
+				makerPaymentAccount
+			})
+			.transaction()
 
-				instructionSysvar: SYSVAR_INSTRUCTIONS_PUBKEY,
-				systemProgram: SystemProgram.programId,
+		const tx = new anchor.web3.Transaction()
+			.add(ed25519Ix)
+			.add(createOrder)
+
+		const txid = await this.#provider.sendAndConfirm(tx, [signer], {
+			commitment: 'confirmed'
+		})
+
+		return this.provider.connection.getTransaction(txid, {
+			commitment: 'confirmed',
+			maxSupportedTransactionVersion: 0
+		})
+	}
+
+	async sell (payload : OraclePayload, { message, signature }) {
+		const { signer } = this
+		const { authority } = await this.registry
+		const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+			publicKey: authority.toBytes(),
+			message,
+			signature: Buffer.from(signature)
+		})
+		const createOrder = await this.#program.methods
+			.createSellOrder(payload)
+			.accounts({
+				payer: signer.publicKey,
+				tickerMintAccount: payload.tickerMint,
+				paymentMintAccount: payload.paymentMint
 			})
 			.transaction()
 
@@ -154,7 +177,10 @@ export class Ticker {
 		const { signer } = this
 
 		const order = await this.order(signer.publicKey, orderId) as any
-		const refundAccount = await ata(order.paymentMint, signer.publicKey)
+		const refundAccount = await ata(
+			Object.keys(order.side)[0] === 'buy' ? order.paymentMint : order.tickerMint,
+			signer.publicKey
+		)
 
 		return this.#program.methods
 			.cancelOrder(orderId)
@@ -164,6 +190,53 @@ export class Ticker {
 				refundAccount
 			})
 			.signers([signer]).rpc()
+	}
+
+	async process (maker : PublicKey, orderId : number) {
+		const { signer } = this
+		const order = this.pda(['order', maker.toBuffer(), new BN(orderId).toArrayLike(Buffer, 'le', 8)])
+
+		return this.#program.methods
+			.processOrder()
+			.accounts({
+				payer: signer.publicKey,
+				// @ts-ignore
+				order
+			})
+			.signers([signer]).rpc()
+	}
+
+	async execute (maker : PublicKey, orderId : number, proofCid : number[]) {
+		const { signer } = this
+		const { side, tickerMint, paymentMint } = await this.order(maker, orderId)
+		
+		const makerAccount = await ata(
+			Object.keys(side)[0] === 'buy' ? tickerMint : paymentMint,
+			maker
+		)
+
+		const executeOrder = await this.#program.methods
+			.executeOrder(orderId, proofCid)
+			.accounts({
+				payer: signer.publicKey,
+				maker,
+				makerAccount,
+				paymentMint,
+				tickerMint,
+			})
+			.transaction()
+		
+		const tx = new anchor.web3.Transaction()
+			.add(executeOrder)
+
+		const txid = await this.#provider.sendAndConfirm(tx, [signer], {
+			commitment: 'confirmed'
+		})
+
+		return this.provider.connection.getTransaction(txid, {
+			commitment: 'confirmed',
+			maxSupportedTransactionVersion: 0
+		})
 	}
 }
 

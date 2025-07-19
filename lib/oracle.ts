@@ -2,10 +2,14 @@ import BN from 'bn.js'
 import { keccak_256 } from '@noble/hashes/sha3.js'
 
 import { PublicKey } from '@solana/web3.js'
-import { createKeyPairFromBytes, fixCodecSize, getBytesCodec, getU8Codec, getStructCodec, getU64Codec, signBytes } from '@solana/kit'
+import { createKeyPairFromBytes, fixCodecSize, getBytesCodec, getU8Codec, getStructCodec, getU64Codec, signBytes, getArrayCodec } from '@solana/kit'
 
 import { SPLToken } from './spl.ts'
 import { pda, randomString } from './utils.ts'
+
+import * as Hasher from 'multiformats/hashes/sha2'
+import * as Block from 'multiformats/block'
+import * as dagCbor from '@ipld/dag-cbor'
 
 enum OrderType { Market, Limit }
 export enum OrderSide { Buy, Sell }
@@ -39,6 +43,8 @@ const payloadCodec = getStructCodec([
 const TTL = 60 // 60 seconds
 const fee = 10 // 10% fee
 
+const paymentToken = await SPLToken.create(randomString())
+
 export class Oracle {
 	#secretKey
 	get secretKey () { return this.#secretKey }
@@ -47,14 +53,13 @@ export class Oracle {
 		this.#secretKey = secretKey
 	}
 
-	async order (programId, symbol: string, orderSide: OrderSide, amount: number, price?: number) {
+	async order (programId, symbol: string, amount: number, price?: number) {
 		//const orderType = price ? OrderType.Limit : OrderType.Market
 		const now = Math.floor(Date.now() / 1000)
 
 		price ??= Math.floor(Math.random() * 100 + 1)
 
 		const [tickerMint] = pda(['mint', symbol], programId)
-		const paymentToken = await SPLToken.create(randomString())
 
 		const bnPrice = new BN(price)
 		const bnAmount = new BN(amount)
@@ -63,7 +68,6 @@ export class Oracle {
 		const payload = {
 			id: new BN(now),
 			//orderType,
-			//orderSide,
 
 			tickerMint: tickerMint,
 			amount: new BN(amount) as BN,
@@ -75,19 +79,25 @@ export class Oracle {
 			expiresAt: new BN(now + TTL)
 		}
 
-		const { signature, message } = await this.sign(payload)
-		return { payload, message, signature, _paymentToken: paymentToken }
-	}
-
-	async sign (payload : OraclePayload) {
-		const { secretKey } = this
-		const { privateKey } = await createKeyPairFromBytes(secretKey)
-
 		const encoded = payloadCodec.encode({
 			...payload,
 			tickerMint: payload.tickerMint.toBytes(),
 			paymentMint: payload.paymentMint.toBytes()
 		})
+
+		const { signature, message } = await this.sign(encoded as Uint8Array)
+		return { payload, message, signature, _paymentToken: paymentToken }
+	}
+
+	async cid (id : number) {
+		const block = await Block.encode({ value: id, codec: dagCbor, hasher: Hasher.sha256 })
+		return block.cid.multihash.digest
+	}
+	
+
+	async sign (encoded : Uint8Array) {
+		const { secretKey } = this
+		const { privateKey } = await createKeyPairFromBytes(secretKey)
 
 		const message = keccak_256(new Uint8Array(encoded))
 		const signature = await signBytes(privateKey, message)

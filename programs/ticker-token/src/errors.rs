@@ -76,4 +76,25 @@ pub enum ErrorCode {
 
     #[msg("Bump seed not found")]
     BumpNotFound,
+
+    #[msg("Invalid maker mint")]
+    InvalidMakerMint,
+
+    #[msg("Invalid maker")]
+    InvalidMaker,
+
+    #[msg("Invalid maker account")]
+    InvalidMakerAccount,
+
+    #[msg("Invalid payment mint")]
+    InvalidPaymentMint,
+
+    #[msg("Invalid ticker mint")]
+    InvalidTickerMint,
+
+    #[msg("Invalid maker payment account")]
+    InvalidMakerPaymentAccount,
+
+    #[msg("Invalid sell amount")]
+    InvalidSellAmount,
 }

@@ -38,7 +38,10 @@ pub struct Init<'info> {
 
 #[derive(Accounts)]
 pub struct Authority<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = authority.key() == registry.authority @ TickerError::Unauthorized,
+    )]
     pub authority: Signer<'info>,
 
     #[account(mut, seeds = [b"registry"], bump)]
@@ -57,22 +60,18 @@ pub mod ticker_token {
     }
 
     pub fn transfer_authority(ctx: Context<Authority>, new_authority: Pubkey) -> Result<()> {
-        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::Unauthorized);
         require!(new_authority != Pubkey::default(), TickerError::InvalidAuthority);
 
         ctx.accounts.registry.authority = new_authority;
         Ok(())
     }
 
-    pub fn create_ticker(ctx: Context<CreateTicker>, symbol: String, decimals: u8) -> Result<()> {
-        require!(ctx.accounts.payer.key() == ctx.accounts.registry.authority, TickerError::Unauthorized);
+    pub fn create_ticker(_ctx: Context<CreateTicker>, symbol: String, decimals: u8) -> Result<()> {
         msg!("Created ticker: {} with decimals: {}", symbol, decimals);
-
         Ok(())
     }
 
     pub fn ticker_metadata(ctx: Context<CreateMetadata>, name: String, symbol: String, uri: String) -> Result<()> {
-        require!(ctx.accounts.authority.key() == ctx.accounts.registry.authority, TickerError::Unauthorized);
         ticker::metadata(ctx, name, symbol, uri)
     }
 
@@ -85,8 +84,15 @@ pub mod ticker_token {
     }
 
     pub fn cancel_order(ctx: Context<CancelOrder>, id: u64) -> Result<()> {
-        require!(ctx.accounts.payer.key() == ctx.accounts.order.maker, TickerError::Unauthorized);
-        order::cancel(ctx, id)
+        order::cancel(ctx)
+    }
+
+    pub fn process_order(ctx: Context<ProcessOrder>) -> Result<()> {
+        order::process(ctx)
+    }
+
+    pub fn execute_order(ctx: Context<ExecuteOrder>, order_id: u64, proof_cid: [u8; 32]) -> Result<()> {
+        order::execute(ctx, proof_cid)
     }
 }
 

@@ -5,8 +5,10 @@
 	},
 	"dependencies": {
 		"@coral-xyz/anchor": "^0.31.1",
+		"@ipld/dag-cbor": "^9.2.4",
 		"@noble/hashes": "^1.8.0",
-		"borsh": "^2.0.0"
+		"borsh": "^2.0.0",
+		"multiformats": "^13.3.7"
 	},
 	"devDependencies": {
 		"@solana/kit": "^2.3.0",

@@ -12,19 +12,15 @@ use crate::{
     errors::TickerError
 };
 
-#[account]
-pub struct TickerData {
-    pub symbol: [u8; 8],
-	pub decimals: u8,
-    pub mint: Pubkey,
-}
-
 // TODO: Metaplex support
 
 #[derive(Accounts)]
 #[instruction(ticker: String, decimals: u8)]
 pub struct CreateTicker<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        constraint = payer.key() == registry.authority @ TickerError::Unauthorized,
+    )]
     pub payer: Signer<'info>,
 
     #[account(seeds = [b"registry"], bump)]
@@ -49,7 +45,10 @@ pub struct CreateTicker<'info> {
 
 #[derive(Accounts)]
 pub struct CreateMetadata<'info> {
-     #[account(mut)]
+     #[account(
+        mut,
+        constraint = authority.key() == registry.authority @ TickerError::Unauthorized,
+    )]
     pub authority: Signer<'info>,
 
     #[account(seeds = [b"registry"], bump)]

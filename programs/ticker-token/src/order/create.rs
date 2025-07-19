@@ -1,7 +1,4 @@
-use anchor_lang::{
-	prelude::*,
-	solana_program::keccak,
-};
+use anchor_lang::prelude::*;
 use anchor_spl::{
 	token::{self, TokenAccount, Token, Mint}
 };
@@ -163,8 +160,7 @@ pub fn create<'info>(
 	let mut serialized = vec![];
 	payload.serialize(&mut serialized)?;
 
-	let hash = keccak::hash(&serialized);
-	verify_ed25519_ix(&instruction_sysvar, &registry.authority, &hash.0)?;
+	verify_ed25519_ix(&instruction_sysvar, &registry.authority, &serialized)?;
 
 	let cpi_ctx = CpiContext::new(
 		token_program.to_account_info(),
@@ -195,7 +191,7 @@ pub fn create<'info>(
 	emit!(OrderCreated {
 		id: payload.id,
 		maker: order.maker,
-		created_at: now,
+		timestamp: now,
 		expires_at: payload.expires_at,
 	});
 
