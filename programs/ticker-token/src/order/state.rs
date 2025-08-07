@@ -11,10 +11,17 @@ pub struct OrderCreated {
 }
 
 #[event]
-pub struct OrderCancelled {
+pub struct OrderCanceled {
 	pub id: u64,
 	pub maker: Pubkey,
 	pub timestamp: i64,
+}
+
+#[event]
+pub struct OrderProcessing {
+    pub id: u64,
+    pub maker: Pubkey,
+    pub timestamp: i64,
 }
 
 #[event]
@@ -22,6 +29,7 @@ pub struct OrderExecuted {
     pub id: u64,
 
     pub side: OrderSide,
+    pub market: bool,
     pub maker: Pubkey,
 
     pub ticker_mint: Pubkey,
@@ -41,6 +49,7 @@ pub struct Order {
     pub id: u64, // уникальный идентификатор заявки
     
     pub side: OrderSide, // сторона заявки (Buy, Sell)
+    pub market: bool, // является ли заявка рыночной
     pub maker: Pubkey, // адрес создателя ордера
     
     pub ticker_mint: Pubkey, // адрес тиккер токена

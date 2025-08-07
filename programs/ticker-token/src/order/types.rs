@@ -21,6 +21,7 @@ pub enum OrderStatus {
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct OrderPayload {
     pub id: u64,
+    pub market: bool,
 
     pub ticker_mint: Pubkey,
     pub amount: u64,

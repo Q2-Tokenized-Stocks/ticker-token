@@ -174,8 +174,10 @@ pub fn create<'info>(
 
 	// Записываем данные в OrderState
 	order.id = payload.id;
+
 	order.side = side;
-	
+	order.market = payload.market;
+
 	order.maker = payer.key();
 	
 	order.ticker_mint = payload.ticker_mint;

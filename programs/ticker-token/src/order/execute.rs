@@ -98,6 +98,13 @@ pub struct ExecuteOrder<'info> {
 
 pub fn process(ctx: Context<ProcessOrder>) -> Result<()> {
 	ctx.accounts.order.status = OrderStatus::Processing;
+
+	emit!(OrderProcessing {
+		id: ctx.accounts.order.id,
+		maker: ctx.accounts.order.maker,
+		timestamp: Clock::get()?.unix_timestamp,
+	});
+
 	Ok(())
 }
 
@@ -186,6 +193,7 @@ pub fn execute<'info>(ctx: Context<ExecuteOrder>, proof_cid: [u8; 32]) -> Result
 		id: order.id,
 
 		side: order.side,
+		market: order.market,
 		maker: order.maker,
 
 		ticker_mint: order.ticker_mint,

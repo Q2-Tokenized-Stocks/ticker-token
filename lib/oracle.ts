@@ -2,7 +2,7 @@ import BN from 'bn.js'
 import { keccak_256 } from '@noble/hashes/sha3.js'
 
 import { PublicKey } from '@solana/web3.js'
-import { createKeyPairFromBytes, fixCodecSize, getBytesCodec, getU8Codec, getStructCodec, getU64Codec, signBytes, getArrayCodec } from '@solana/kit'
+import { createKeyPairFromBytes, fixCodecSize, getBytesCodec, getU8Codec, getStructCodec, getU64Codec, signBytes, getArrayCodec, getBooleanCodec } from '@solana/kit'
 
 import { SPLToken } from './spl.ts'
 import { pda, randomString } from './utils.ts'
@@ -16,6 +16,7 @@ export enum OrderSide { Buy, Sell }
 
 export type OraclePayload = {
 	id : BN
+	market : boolean // is market order
 
 	//orderType : OrderType
 	//orderSide : OrderSide
@@ -32,6 +33,7 @@ export type OraclePayload = {
 
 const payloadCodec = getStructCodec([
 	['id', getU64Codec()],
+	['market', getBooleanCodec()],
 	['tickerMint', fixCodecSize(getBytesCodec(), 32)],
 	['amount', getU64Codec()],
 	['paymentMint', fixCodecSize(getBytesCodec(), 32)],
@@ -54,7 +56,8 @@ export class Oracle {
 	}
 
 	async order (programId, symbol: string, amount: number, price?: number) {
-		//const orderType = price ? OrderType.Limit : OrderType.Market
+		const market = !price // if price is not set, it's a market order
+		//const id = crypto.randomUUID()
 		const now = Math.floor(Date.now() / 1000)
 
 		price ??= Math.floor(Math.random() * 100 + 1)
@@ -68,6 +71,7 @@ export class Oracle {
 		const payload = {
 			id: new BN(now),
 			//orderType,
+			market, // if price is not set, it's a market order
 
 			tickerMint: tickerMint,
 			amount: new BN(amount) as BN,

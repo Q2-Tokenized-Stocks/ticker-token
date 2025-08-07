@@ -110,7 +110,8 @@ export class Ticker {
 		
 		const { authority } = await this.registry
 		const makerPaymentAccount = await ata(payload.paymentMint, signer.publicKey)
-
+		console.log('message', message, typeof message)
+		console.log('signature', signature, typeof signature)
 		const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
 			publicKey: authority.toBytes(),
 			message,

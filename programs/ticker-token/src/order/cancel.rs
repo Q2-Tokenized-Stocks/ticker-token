@@ -61,7 +61,7 @@ pub fn cancel(ctx: Context<CancelOrder>) -> Result<()> {
 		ctx.bumps.order,
 	)?;
 
-	emit!(OrderCancelled {
+	emit!(OrderCanceled {
 		id: order.id,
 		maker: order.maker,
 		timestamp: Clock::get()?.unix_timestamp,
