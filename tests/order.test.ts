@@ -17,31 +17,49 @@ test('[TickerToken] Order', async () => {
 		const symbol = randomString()
 		await TickerToken.createTicker(symbol)
 		const fake = new Oracle(web3.Keypair.generate().secretKey)
-
-		const { payload, message, signature, _paymentToken: token } = await fake.order(
-			TickerToken.program.programId, symbol, 10
+		const user = await createUser()
+		const { payload, message, signature } = await fake.payload(
+			TickerToken.program.programId, user.publicKey, symbol, 10
 		)
-		const user = await createUser({ tokens: [{ token, balance: 1e18 }] })
 
 		assert.rejects(TickerToken.connect(user).buy(payload, { message, signature }))
 	})
 
+	await test('Payer must be the order maker', async () => {
+		const symbol = randomString()
+		await TickerToken.createTicker(symbol)
+		const user = await createUser()
+		const { payload, message, signature } = await oracle.payload(
+			TickerToken.program.programId, user.publicKey, symbol, 10
+		)
+
+		const otherUser = await createUser()
+		await assert.rejects(
+			TickerToken.connect(otherUser).buy(payload, { message, signature }),
+			'Payer must be the order maker'
+		)
+	})
+
 	let buyOrderId
-	let orderMaker
+	let orderMaker = await createUser()
 	let token
+
 	const symbol = randomString()
+
 	await test('Buy order creating', async () => {
 		await TickerToken.createTicker(symbol)
 
-		const { payload, message, signature, _paymentToken } = await oracle.order(
-			TickerToken.program.programId, symbol, 10
+		const { payload, message, signature, _paymentToken } = await oracle.payload(
+			TickerToken.program.programId, orderMaker.publicKey, symbol, 10
 		)
+		
 		token = _paymentToken
-		orderMaker = await createUser({ tokens: [{ token, balance: 1e18 }] })
+		await _paymentToken.mintTo(orderMaker.publicKey, 1e18, orderMaker)
+
 		const { amount: makerPaymentBalance } = await token.account(orderMaker.publicKey)
 
 		assert.equal(makerPaymentBalance, BigInt(1e18))
-		
+
 		const tx = await TickerToken.connect(orderMaker).buy(payload, { message, signature })
 
 		//console.log(tx.meta.logMessages?.join('\n'))
@@ -139,8 +157,8 @@ test('[TickerToken] Order', async () => {
 
 	let sellOrderId
 	await test('Sell order creating', async () => {
-		const { payload, message, signature } = await oracle.order(
-			TickerToken.program.programId, symbol, OrderSide.Sell, 1
+		const { payload, message, signature } = await oracle.payload(
+			TickerToken.program.programId, orderMaker.publicKey, symbol, OrderSide.Sell, 1
 		)
 		const makerTokenBalanceBefore = await TickerToken.balance(symbol, orderMaker.publicKey)
 
@@ -239,7 +257,7 @@ test('[TickerToken] Order', async () => {
 		})
 
 		await test('Cancel buy order', async () => {
-			const { payload, message, signature } = await oracle.order(TickerToken.program.programId, symbol, OrderSide.Buy, 1)
+			const { payload, message, signature } = await oracle.payload(TickerToken.program.programId, orderMaker.publicKey, symbol, OrderSide.Buy, 1)
 			await TickerToken.connect(orderMaker).buy(payload, { message, signature })
 			const order = await TickerToken.order(orderMaker.publicKey, payload.id)
 
@@ -267,7 +285,7 @@ test('[TickerToken] Order', async () => {
 		})
 
 		await test('Cancel sell order', async () => {
-			const { payload, message, signature } = await oracle.order(TickerToken.program.programId, symbol, OrderSide.Sell, 1)
+			const { payload, message, signature } = await oracle.payload(TickerToken.program.programId, orderMaker.publicKey, symbol, OrderSide.Sell, 1)
 			await TickerToken.connect(orderMaker).sell(payload, { message, signature })
 			const order = await TickerToken.order(orderMaker.publicKey, payload.id)
 

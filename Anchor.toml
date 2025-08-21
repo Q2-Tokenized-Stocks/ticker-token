@@ -12,7 +12,8 @@ ticker_token = "EjJFMSVeNQYjjJJkC3fic9pTHj9AcowTbEz7CcGFkXXk"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+#cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]

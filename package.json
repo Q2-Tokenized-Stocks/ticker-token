@@ -1,5 +1,6 @@
 {
 	"type": "module",
+	"version": "0.2.0",
 	"scripts": {
 		"test": "node --loader ts-node/esm --test --test-concurrency=1 tests/**/*.ts"
 	},

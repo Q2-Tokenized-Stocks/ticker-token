@@ -16,6 +16,7 @@ export enum OrderSide { Buy, Sell }
 
 export type OraclePayload = {
 	id : BN
+	maker : PublicKey // the maker of the order
 	market : boolean // is market order
 
 	//orderType : OrderType
@@ -33,6 +34,7 @@ export type OraclePayload = {
 
 const payloadCodec = getStructCodec([
 	['id', getU64Codec()],
+	['maker', fixCodecSize(getBytesCodec(), 32)],
 	['market', getBooleanCodec()],
 	['tickerMint', fixCodecSize(getBytesCodec(), 32)],
 	['amount', getU64Codec()],
@@ -55,7 +57,7 @@ export class Oracle {
 		this.#secretKey = secretKey
 	}
 
-	async order (programId, symbol: string, amount: number, price?: number) {
+	async payload (programId, maker: PublicKey, symbol: string, amount: number, price?: number) {
 		const market = !price // if price is not set, it's a market order
 		//const id = crypto.randomUUID()
 		const now = Math.floor(Date.now() / 1000)
@@ -71,9 +73,10 @@ export class Oracle {
 		const payload = {
 			id: new BN(now),
 			//orderType,
+			maker,
 			market, // if price is not set, it's a market order
 
-			tickerMint: tickerMint,
+			tickerMint,
 			amount: new BN(amount) as BN,
 
 			paymentMint: paymentToken.mint,
@@ -85,6 +88,7 @@ export class Oracle {
 
 		const encoded = payloadCodec.encode({
 			...payload,
+			maker: payload.maker.toBytes(),
 			tickerMint: payload.tickerMint.toBytes(),
 			paymentMint: payload.paymentMint.toBytes()
 		})

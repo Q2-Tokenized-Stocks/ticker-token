@@ -81,7 +81,10 @@ pub struct CreateBuyOrder<'info> {
 #[instruction(payload: OrderPayload)]
 pub struct CreateSellOrder<'info> {
 
- 	#[account(mut)]
+ 	#[account(
+		mut,
+		constraint = payer.key() == payload.maker
+	)]
     pub payer: Signer<'info>,
 
     #[account(seeds = [b"registry"], bump)]
