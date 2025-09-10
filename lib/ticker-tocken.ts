@@ -206,21 +206,23 @@ export class Ticker {
 			.signers([signer]).rpc()
 	}
 
-	async execute (maker : PublicKey, orderId : number, proofCid : number[]) {
+	async execute (maker : PublicKey, orderId : number, spent : bigint, proofCid : number[]) {
 		const { signer } = this
 		const { side, tickerMint, paymentMint } = await this.order(maker, orderId)
 		
-		const makerAccount = await ata(
-			Object.keys(side)[0] === 'buy' ? tickerMint : paymentMint,
-			maker
-		)
+		const refundAccount = await ata(paymentMint, maker)
+		const makerAccount = Object.keys(side)[0] === 'buy' 
+			? await ata(tickerMint, maker)
+			: refundAccount
+
 
 		const executeOrder = await this.#program.methods
-			.executeOrder(orderId, proofCid)
+			.executeOrder(orderId, new BN(spent), Buffer.from(proofCid))
 			.accounts({
 				payer: signer.publicKey,
 				maker,
 				makerAccount,
+				refundAccount,
 				paymentMint,
 				tickerMint,
 			})

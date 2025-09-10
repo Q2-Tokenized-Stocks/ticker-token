@@ -44,7 +44,8 @@ pub struct ExecuteOrder<'info> {
 		mut,
 		seeds = [b"order", maker.key().as_ref(), &order_id.to_le_bytes()],
 		bump,
-		constraint = order.status == OrderStatus::Processing @ ErrorCode::OrderAlreadyProcessed,
+		// order status must be Processing or Pending
+		constraint = order.status == OrderStatus::Processing || order.status == OrderStatus::Pending @ ErrorCode::OrderAlreadyProcessed,
 		close = payer,
 	)]
 	pub order: Account<'info, Order>,
@@ -61,6 +62,13 @@ pub struct ExecuteOrder<'info> {
 		constraint = maker_account.owner == maker.key() @ ErrorCode::InvalidMakerAccount,
 	)]
 	pub maker_account: Account<'info, TokenAccount>, // Куда переводить токены (платежный или тиккер)
+
+	#[account(
+		mut,
+		constraint = refund_account.owner == maker.key() @ ErrorCode::InvalidRefundAccount,
+		constraint = refund_account.mint == order.payment_mint @ ErrorCode::InvalidRefundMint,
+	)]
+	pub refund_account: Account<'info, TokenAccount>, // Куда возвращать сдачу (если осталась)
 
 	#[account(
 		mut,
@@ -108,7 +116,7 @@ pub fn process(ctx: Context<ProcessOrder>) -> Result<()> {
 	Ok(())
 }
 
-pub fn execute<'info>(ctx: Context<ExecuteOrder>, proof_cid: [u8; 32]) -> Result<()> {
+pub fn execute<'info>(ctx: Context<ExecuteOrder>, spent: u64, proof_cid: Vec<u8>) -> Result<()> {
 	let order = &ctx.accounts.order;
 	let signer_seeds: [&[u8]; 4] = [
 		b"order",
@@ -117,13 +125,18 @@ pub fn execute<'info>(ctx: Context<ExecuteOrder>, proof_cid: [u8; 32]) -> Result
 		&[ctx.bumps.order],
 	];
 	let signer: &[&[&[u8]]] = &[&signer_seeds];
+
+	
 	match order.side {
 		OrderSide::Buy => {
-			let amount = order.amount
-				.checked_mul(order.price).ok_or(ErrorCode::Overflow)?
-				.checked_add(order.fee).ok_or(ErrorCode::Overflow)?;
-
 			require!(ctx.accounts.escrow_account.mint == order.payment_mint, ErrorCode::InvalidEscrowMint);
+			require!(ctx.accounts.maker_account.mint == order.ticker_mint, ErrorCode::InvalidMakerMint);
+
+			// сумма которую потртил брокер + наша комиссия (уже включает комиссию брокера)
+			let amount = spent.checked_add(order.fee).ok_or(ErrorCode::Overflow)?;	
+			require!(amount <= ctx.accounts.escrow_account.amount, ErrorCode::InsufficientEscrowBalance);
+
+			// перевод пдатежа из эскроу на пулл
 			let cpi_ctx = CpiContext::new_with_signer(
 				ctx.accounts.token_program.to_account_info(),
 				token::Transfer {
@@ -135,6 +148,24 @@ pub fn execute<'info>(ctx: Context<ExecuteOrder>, proof_cid: [u8; 32]) -> Result
 			);
 			token::transfer(cpi_ctx, amount)?;
 
+			// возвращаем сдачу мейкеру
+			let refund = ctx.accounts.escrow_account.amount
+				.checked_sub(amount).ok_or(ErrorCode::Overflow)?;
+
+			if refund > 0 {
+				let cpi_ctx_refund = CpiContext::new_with_signer(
+					ctx.accounts.token_program.to_account_info(),
+					token::Transfer {
+						from: ctx.accounts.escrow_account.to_account_info(),
+						to: ctx.accounts.refund_account.to_account_info(),
+						authority: order.to_account_info(),
+					},
+					signer,
+				);
+				token::transfer(cpi_ctx_refund, refund)?;
+			}
+
+			// Минтим токены тикера на аккаунт мейкера
 			require!(ctx.accounts.maker_account.mint == order.ticker_mint, ErrorCode::InvalidMakerMint);
 			let cpi_ctx_mint = CpiContext::new(
 				ctx.accounts.token_program.to_account_info(),
@@ -146,14 +177,14 @@ pub fn execute<'info>(ctx: Context<ExecuteOrder>, proof_cid: [u8; 32]) -> Result
 			);
 			token::mint_to(cpi_ctx_mint, order.amount)?;
 		}
-		OrderSide::Sell => {
-			let amount = order.amount
-				.checked_mul(order.price).ok_or(ErrorCode::Overflow)?
-				.checked_sub(order.fee).ok_or(ErrorCode::Overflow)?;
 
-			require!(amount > 0, ErrorCode::InvalidSellAmount);
+		OrderSide::Sell => {
 			require!(ctx.accounts.maker_account.mint == order.payment_mint, ErrorCode::InvalidMakerMint);
 			require!(ctx.accounts.escrow_account.mint == order.ticker_mint, ErrorCode::InvalidEscrowMint);
+
+			// сумма которую получил брокер - наша комиссия (уже включает комиссию брокера)
+			let amount = spent.checked_sub(order.fee).ok_or(ErrorCode::Overflow)?;
+			require!(ctx.accounts.pool.amount >= amount, ErrorCode::InsufficientPoolBalance);
 			
 			// перевод токенов из пулла на аккаунт мейкера
 			let cpi_ctx = CpiContext::new(

@@ -39,7 +39,7 @@ pub struct OrderExecuted {
     pub price: u64,
     pub fee: u64,
 
-    pub proof_cid: [u8; 32],
+    pub proof_cid: Vec<u8>,
 
     pub timestamp: i64,
 }

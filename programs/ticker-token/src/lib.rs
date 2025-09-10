@@ -67,12 +67,8 @@ pub mod ticker_token {
     }
 
     pub fn create_ticker(_ctx: Context<CreateTicker>, symbol: String, decimals: u8) -> Result<()> {
-        msg!("Created ticker: {} with decimals: {}", symbol, decimals);
+        emit!(TickerCreated { ticker: symbol.clone() });
         Ok(())
-    }
-
-    pub fn ticker_metadata(ctx: Context<CreateMetadata>, name: String, symbol: String, uri: String) -> Result<()> {
-        ticker::metadata(ctx, name, symbol, uri)
     }
 
     pub fn create_buy_order(ctx: Context<CreateBuyOrder>, payload: OrderPayload) -> Result<()> {
@@ -91,8 +87,7 @@ pub mod ticker_token {
         order::process(ctx)
     }
 
-    pub fn execute_order(ctx: Context<ExecuteOrder>, order_id: u64, proof_cid: [u8; 32]) -> Result<()> {
-        order::execute(ctx, proof_cid)
+    pub fn execute_order(ctx: Context<ExecuteOrder>, order_id: u64, spent: u64, proof_cid: Vec<u8>) -> Result<()> {
+        order::execute(ctx, spent, proof_cid)
     }
 }
-

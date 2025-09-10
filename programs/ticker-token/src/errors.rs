@@ -95,6 +95,17 @@ pub enum ErrorCode {
     #[msg("Invalid maker payment account")]
     InvalidMakerPaymentAccount,
 
+    #[msg("Invalid refund account")]
+    InvalidRefundAccount,
+
     #[msg("Invalid sell amount")]
     InvalidSellAmount,
+
+    #[msg("Insufficient pool balance")]
+    InsufficientPoolBalance,
+
+    #[msg("Insufficient escrow balance")]
+    InsufficientEscrowBalance,
+
+
 }

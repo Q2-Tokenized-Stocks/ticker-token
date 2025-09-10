@@ -6,3 +6,5 @@ node_modules
 test-ledger
 .yarn
 ledger
+.wallet.json
+docker-target

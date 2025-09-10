@@ -118,8 +118,9 @@ test('[TickerToken] Order', async () => {
 		await test('Executing buy order', async () => {
 			const proof = await oracle.cid(buyOrderId)
 			const order = await TickerToken.order(orderMaker.publicKey, buyOrderId)
+			const spent = BigInt(order.amount) * BigInt(order.price * .8 >> 0)
 			const tx = await TickerToken.execute(
-				orderMaker.publicKey, buyOrderId, Array.from(proof)
+				orderMaker.publicKey, buyOrderId, spent, Array.from(proof)
 			)
 
 			const parser = new EventParser(TickerToken.program.programId, TickerToken.program.coder)
@@ -127,20 +128,24 @@ test('[TickerToken] Order', async () => {
 
 			for (const event of events) {
 				if (event.name !== 'orderExecuted') continue
+
 				const data = event.data as any
-				assert.equal(data.proofCid.toString(), proof.toString(), 'Proof CID mismatch')
+				assert.equal(Array.from(data.proofCid).toString(), proof.toString(), 'Proof CID mismatch')
 
 				delete data.proofCid
 				delete data.timestamp
 				delete order.status
 				delete order.expiresAt
 
+				//console.log({ data, order })
+
 				assert.deepEqual(data, order, 'Order data mismatch in event')
 			}
 
 			const poolPDA = TickerToken.pda(['pool', order.tickerMint.toBuffer(), order.paymentMint.toBuffer()])
 			const { amount: poolBalance } = await getAccount(TickerToken.provider.connection, poolPDA)
-			const expectedBalance = BigInt(order.amount) * BigInt(order.price) + BigInt(order.fee)
+
+			const expectedBalance = spent + BigInt(order.fee)
 			assert.equal(
 				poolBalance, expectedBalance,
 				'Pool balance mismatch after order execution'
@@ -199,9 +204,12 @@ test('[TickerToken] Order', async () => {
 			//const { amount: poolBalanceBefore } = await getAccount(TickerToken.provider.connection, poolPDA)
 			const { amount: makerPaymentBalanceBefore } = await token.account(orderMaker.publicKey)
 			const supplyBefore = await TickerToken.supply(symbol)
+			const spent = BigInt(order.amount) * BigInt(order.price * .8 >> 0) // simulate partial fill
+
+			const { amount: poolBalanceBefore } = await getAccount(TickerToken.provider.connection, poolPDA)
 
 			const tx = await TickerToken.execute(
-				orderMaker.publicKey, sellOrderId, Array.from(proof)
+				orderMaker.publicKey, sellOrderId, spent, Array.from(proof)
 			)
 
 			const parser = new EventParser(TickerToken.program.programId, TickerToken.program.coder)
@@ -210,7 +218,7 @@ test('[TickerToken] Order', async () => {
 			for (const event of events) {
 				if (event.name !== 'orderExecuted') continue
 				const data = event.data as any
-				assert.equal(data.proofCid.toString(), proof.toString(), 'Proof CID mismatch')
+				assert.equal(Array.from(data.proofCid).toString(), proof.toString(), 'Proof CID mismatch')
 
 				delete data.proofCid
 				delete data.timestamp
@@ -221,11 +229,10 @@ test('[TickerToken] Order', async () => {
 			}
 
 			const { amount: poolBalanceAfter } = await getAccount(TickerToken.provider.connection, poolPDA)
-			const spent = BigInt(order.amount) * BigInt(order.price) - BigInt(order.fee)
-			//assert.equal(
-			//	poolBalanceAfter, poolBalanceBefore - spent,
-			//	'Pool balance mismatch after sell order execution'
-			//)
+			assert.equal(
+				poolBalanceAfter, poolBalanceBefore - spent + BigInt(order.fee),
+				'Pool balance mismatch after sell order execution'
+			)
 
 			const { amount: makerPaymentBalanceAfter } = await token.account(orderMaker.publicKey)
 			assert.equal(

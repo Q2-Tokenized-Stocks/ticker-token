@@ -8,13 +8,18 @@ skip-lint = false
 [programs.localnet]
 ticker_token = "EjJFMSVeNQYjjJJkC3fic9pTHj9AcowTbEz7CcGFkXXk"
 
+[programs.mainnet]
+ticker_token = "EjJFMSVeNQYjjJJkC3fic9pTHj9AcowTbEz7CcGFkXXk"
+
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-#cluster = "devnet"
-cluster = "localnet"
+cluster = "devnet"
+#cluster = "localnet"
 wallet = "~/.config/solana/id.json"
+#cluster = "mainnet"
+#wallet = "./.wallet.json"
 
 [scripts]
 test = "npm run test"
