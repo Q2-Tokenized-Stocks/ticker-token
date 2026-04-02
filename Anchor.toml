@@ -6,18 +6,19 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-ticker_token = "EjJFMSVeNQYjjJJkC3fic9pTHj9AcowTbEz7CcGFkXXk"
+ticker_token = "5ahBQtQob5nnZKh5h2dau5EF3BRUwyKZzFn4sDFusa94"
 
 [programs.mainnet]
-ticker_token = "EjJFMSVeNQYjjJJkC3fic9pTHj9AcowTbEz7CcGFkXXk"
+ticker_token = "5ahBQtQob5nnZKh5h2dau5EF3BRUwyKZzFn4sDFusa94"
 
 [registry]
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
-#cluster = "localnet"
 wallet = "~/.config/solana/id.json"
+#cluster = "localnet"
+cluster = "devnet"
+
 #cluster = "mainnet"
 #wallet = "./.wallet.json"
 

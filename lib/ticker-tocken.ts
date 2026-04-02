@@ -173,19 +173,20 @@ export class Ticker {
 		})
 	}
 
-	async cancel (orderId : number) {
+	async cancel (orderId : number, maker = this.signer.publicKey) {
 		const { signer } = this
 
-		const order = await this.order(signer.publicKey, orderId) as any
+		const order = await this.order(maker, orderId) as any
 		const refundAccount = await ata(
 			Object.keys(order.side)[0] === 'buy' ? order.paymentMint : order.tickerMint,
-			signer.publicKey
+			maker
 		)
 
 		return this.#program.methods
 			.cancelOrder(orderId)
 			.accounts({
 				payer: signer.publicKey,
+				maker,
 				// @ts-ignore
 				refundAccount
 			})

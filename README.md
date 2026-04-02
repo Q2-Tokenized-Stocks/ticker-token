@@ -1,7 +1,5 @@
 ## Ticker Token (Anchor Program)
 
-**Program ID**: `EjJFMSVeNQYjjJJkC3fic9pTHj9AcowTbEz7CcGFkXXk`
-
 ## Назначение
 - Принимает заявки (ордера) на покупку/продажу «тикер»-токена.
 - Оракл подписывает payload заявки (ed25519) и инициирует выполнение.
@@ -106,3 +104,102 @@
 - Минт тикера создаётся с `mint::authority = registry.authority` (админ/оракл).
 - `Pool` создаётся при первом исполнении пары `(ticker_mint, payment_mint)` и принадлежит `authority`.
 - При `executeOrder` `Order` и `Escrow` закрываются, лампорты возвращаются `maker`.
+
+## Метаданные токена (name / symbol / image)
+`createTicker(symbol, decimals)` создаёт только SPL mint. Имя токена, символ, описание и картинка хранятся отдельно в Metaplex metadata account.
+
+Если совсем просто:
+- `mint` — это адрес самого токена.
+- `metadata` — отдельная запись в Solana, где лежит ссылка на JSON с `name`, `symbol`, `description`, `image`.
+- клиент читает именно metadata, потом идёт по `metadata.uri` и забирает JSON из IPFS.
+
+В текущем проекте metadata лучше создавать сразу после `createTicker(...)`. Без неё токен может не загрузиться нормально во фронте.
+
+### Что нужно подготовить
+1. В `oracle/.env` должны быть:
+- `AUTHORITY_SOL_KEY`
+- `SOLANA_RPC_ENDPOINT` или `SOLANA_CLUSTER`
+- `IPFS_PIN_URL`
+- `IPFS_PIN_JWT`
+
+2. Важно не перепутать:
+- использовать нужно тот же ключ, что стоит в `registry.authority`;
+- `mint` — это адрес mint токена, а не ATA и не адрес кошелька;
+- `symbol` в metadata лучше оставлять тем же, что использовался в `createTicker(symbol, ...)`;
+- `imageUrl` должен быть публичным `https://...`;
+- в примере ниже указан `image/png`, если картинка у вас `jpg` или `svg`, поменять `type`.
+
+### Как добавить metadata
+Из директории `oracle` выполнить:
+
+```bash
+deno eval -A --env=.env '
+import bs58 from "npm:bs58"
+import { Keypair } from "@solana/web3.js"
+import { mplTokenMetadata, fetchDigitalAsset, createV1, updateV1, TokenStandard } from "@metaplex-foundation/mpl-token-metadata"
+import { createUmi } from "@metaplex-foundation/umi-bundle-defaults"
+import { publicKey, keypairIdentity } from "@metaplex-foundation/umi"
+import { connection } from "./src/helpers.ts"
+import ipfs from "./src/ipfs.ts"
+
+const mint = "<MINT>"
+const name = "Apple Inc."
+const symbol = "AAPL"
+const description = "Apple Inc. stock token used in Q2."
+const imageUrl = "https://example.com/aapl.png"
+
+const imageCid = await ipfs.pin(new URL(imageUrl))
+const metadataCid = await ipfs.pin({
+	name,
+	symbol,
+	description,
+	image: `ipfs://${imageCid}`,
+	properties: {
+		files: [
+			{ uri: `ipfs://${imageCid}`, type: "image/png" },
+			{ uri: `https://ipfs.io/ipfs/${imageCid}`, type: "image/png" }
+		]
+	}
+})
+
+const uri = `https://ipfs.io/ipfs/${metadataCid}`
+const secret = Deno.env.get("AUTHORITY_SOL_KEY") || ""
+const authority = Keypair.fromSecretKey(bs58.decode(secret))
+
+const umi = createUmi(connection).use(mplTokenMetadata())
+const signer = umi.eddsa.createKeypairFromSecretKey(authority.secretKey)
+umi.use(keypairIdentity(signer))
+
+const asset = await fetchDigitalAsset(umi, publicKey(mint)).catch(() => null)
+const tx = asset?.metadata
+	? await updateV1(umi, {
+		mint: publicKey(mint),
+		data: {
+			name,
+			symbol,
+			uri,
+			sellerFeeBasisPoints: 0,
+			creators: asset.metadata.creators
+		}
+	})
+	: await createV1(umi, {
+		mint: publicKey(mint),
+		authority: umi.identity,
+		name,
+		symbol,
+		uri,
+		sellerFeeBasisPoints: 0 as any,
+		tokenStandard: TokenStandard.Fungible,
+		isMutable: true
+	})
+
+const sig = await tx.send(umi, { maxRetries: 3 })
+const latest = await umi.rpc.getLatestBlockhash()
+await umi.rpc.confirmTransaction(sig, {
+	strategy: { type: "blockhash", ...latest }
+})
+
+console.log("metadata uri:", uri)
+console.log("tx:", sig)
+'
+```

@@ -12,7 +12,7 @@ pub use ticker::*;
 mod order;
 use order::*;
 
-declare_id!("EjJFMSVeNQYjjJJkC3fic9pTHj9AcowTbEz7CcGFkXXk");
+declare_id!("5ahBQtQob5nnZKh5h2dau5EF3BRUwyKZzFn4sDFusa94");
 
 #[account]
 pub struct Registry {
